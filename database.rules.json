@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "games": {
+      ".read": true,
+      ".write": true
+    },
+    "playAlong": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}

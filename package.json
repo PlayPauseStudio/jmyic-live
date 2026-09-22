@@ -1,0 +1,45 @@
+{
+  "name": "jmyic",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "dev:staging": "npx env-cmd -f .env.staging next dev",
+    "build": "next build",
+    "build:staging": "npx env-cmd -f .env.staging next build",
+    "build:production": "npx env-cmd -f .env.production next build",
+    "start": "serve --config serve.json",
+    "preview": "npm run build && npm start",
+    "deploy:firebase": "npm run build && firebase deploy --only hosting",
+    "deploy:firebase:staging": "npm run build:staging && firebase deploy --only hosting --project staging",
+    "deploy:functions": "cd functions && npm run build && cd .. && firebase deploy --only functions",
+    "logs:functions": "firebase functions:log"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "canvas-confetti": "^1.9.3",
+    "firebase": "^12.3.0",
+    "next": "^15.5.4",
+    "papaparse": "^5.5.3",
+    "serve": "^14.2.4",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.13",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/papaparse": "^5.3.16",
+    "@types/react": "19.3.0",
+    "@typescript-eslint/eslint-plugin": "^5.12.0",
+    "@typescript-eslint/parser": "^5.12.0",
+    "autoprefixer": "^10.4.21",
+    "env-cmd": "^11.0.0",
+    "eslint": "^8.9.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.25.4",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^6.0.3"
+  }
+}
