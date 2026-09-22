@@ -42,3 +42,7 @@ next-env.d.ts
 
 # cache
 .firebase/hosting.b3V0.cache
+# firebase
+firebase-debug.log*
+firebase-debug.*.log
+.firebase/
