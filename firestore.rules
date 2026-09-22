@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// NOTE: These mirror the current permissive access model (same as database.rules.json).
+// The operator panel is gated by a client-side password only, so there is no server-side
+// identity to check against. Scoped to the collections the app actually uses so that an
+// unknown path is denied rather than open, unlike console "test mode".
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Question pool — read by all screens, written by the operator's CSV upload.
+    match /questions/{docId} {
+      allow read, write: if true;
+    }
+
+    // Play-along player profiles, keyed by Firebase Auth uid.
+    match /playAlongUsers/{uid} {
+      allow read, write: if true;
+    }
+
+    // Legacy play-along answers. Live answers are in Realtime Database
+    // (playAlong/answers/{questionNumber}/{uid}); this is kept for older records.
+    match /playAlongAnswers/{questionId}/responses/{responseId} {
+      allow read, write: if true;
+    }
+
+    // Everything else is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
