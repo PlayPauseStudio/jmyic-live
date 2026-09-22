@@ -1,9 +1,9 @@
 rules_version = '2';
 
-// NOTE: These mirror the current permissive access model (same as database.rules.json).
-// The operator panel is gated by a client-side password only, so there is no server-side
-// identity to check against. Scoped to the collections the app actually uses so that an
-// unknown path is denied rather than open, unlike console "test mode".
+// NOTE: These mirror the permissive access model the app has always used
+// (same as database.rules.json). The operator panel is gated by a client-side
+// password only, so there is no server-side identity to check against.
+// Scoped to the collections the app actually uses, so an unknown path is denied.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -13,19 +13,23 @@ service cloud.firestore {
     }
 
     // Play-along player profiles, keyed by Firebase Auth uid.
+    // Needs list access: PlayAlongPanel, LeaderboardModal, the data export and
+    // the duplicate-phone check all query this collection, not single docs.
     match /playAlongUsers/{uid} {
       allow read, write: if true;
     }
 
     // Legacy play-along answers. Live answers are in Realtime Database
-    // (playAlong/answers/{questionNumber}/{uid}); this is kept for older records.
-    match /playAlongAnswers/{questionId}/responses/{responseId} {
+    // (playAlong/answers/{questionNumber}/{uid}); nothing writes here any more.
+    // The rule stays because resetPlayAlongData() still lists and deletes this
+    // collection — it needs access to the parent docs, not just /responses,
+    // or "Reset Game Only" fails with permission-denied before it resets anything.
+    match /playAlongAnswers/{questionId} {
       allow read, write: if true;
-    }
 
-    // Everything else is denied.
-    match /{document=**} {
-      allow read, write: if false;
+      match /responses/{responseId} {
+        allow read, write: if true;
+      }
     }
   }
 }
