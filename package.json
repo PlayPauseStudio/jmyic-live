@@ -13,7 +13,6 @@
     "start": "serve --config serve.json",
     "preview": "npm run build && npm start",
     "deploy:firebase": "npm run build && firebase deploy --only hosting",
-    "deploy:firebase:staging": "npm run build:staging && firebase deploy --only hosting --project staging",
     "deploy:functions": "cd functions && npm run build && cd .. && firebase deploy --only functions",
     "logs:functions": "firebase functions:log"
   },
@@ -21,7 +20,7 @@
     "@heroicons/react": "^2.2.0",
     "canvas-confetti": "^1.9.3",
     "firebase": "^12.3.0",
-    "next": "^15.5.4",
+    "next": "^15.5.25",
     "papaparse": "^5.5.3",
     "serve": "^14.2.4",
     "xlsx": "^0.18.5"

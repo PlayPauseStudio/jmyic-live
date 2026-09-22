@@ -1,8 +1,7 @@
 {
   "projects": {
-    "default": "jmyic-ffc7a",
-    "staging": "jmiyc-staging",
-    "prod": "jmyic-ffc7a"
+    "default": "jmyic-live",
+    "prod": "jmyic-live"
   },
   "targets": {},
   "etags": {}

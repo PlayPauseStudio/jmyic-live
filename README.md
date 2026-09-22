@@ -62,12 +62,12 @@ After that, every push to `main` redeploys automatically.
 Google sign-in is rejected from any origin Firebase does not know about. This step is
 mandatory for `/play` to work, and it is easy to forget when the domain changes.
 
-1. [Firebase Console](https://console.firebase.google.com) → project `jmyic-ffc7a`
+1. [Firebase Console](https://console.firebase.google.com) → project `jmyic-live`
 2. **Authentication → Settings → Authorized domains → Add domain**
 3. Add the Railway domain (e.g. `jmyic-live-production.up.railway.app`), and any custom
    domain you later attach to the service.
 
-`NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` stays `jmyic-ffc7a.firebaseapp.com` — the sign-in popup is
+`NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` is `jmyic-live.firebaseapp.com` — the sign-in popup is
 served by Firebase, so it does not change when hosting moves.
 
 ### Environment variables on Railway
@@ -100,8 +100,8 @@ Hosting has moved to Railway, but the Firebase config is still present so you ca
 to it, and so you can push database rules.
 
 ```bash
-npm run deploy:firebase          # build + deploy hosting to jmyic-ffc7a
-firebase deploy --only database  # push database.rules.json
+npm run deploy:firebase          # build + deploy hosting to jmyic-live
+firebase deploy --only database,firestore  # push database.rules.json + firestore.rules
 ```
 
 > **Important:** Do NOT run plain `firebase deploy` — it will try to deploy Cloud Functions and
@@ -117,7 +117,7 @@ The `functions/` directory is unused by the app (health check + a stub). Deploy 
 | File | Used by |
 |------|---------|
 | `.env.local` | `npm run dev` |
-| `.env.staging` | `npm run build:staging` |
+| `.env.staging` | `npm run build:staging` — same project as prod, see note in the file |
 | `.env.production` | `npm run build:production`, and `npm run build` on Railway |
 
 Required variables (all `NEXT_PUBLIC_`):
@@ -165,7 +165,7 @@ NEXT_PUBLIC_OPERATOR_PASSWORD_HASH=<hash from step 1>
 
 For the **Play Along** feature to work, enable authentication providers in the Firebase Console:
 
-1. Go to [Firebase Console](https://console.firebase.google.com) → project `jmyic-ffc7a`
+1. Go to [Firebase Console](https://console.firebase.google.com) → project `jmyic-live`
 2. Authentication → Sign-in method
 3. Enable **Google** and **Email/Password**
 4. Authentication → Settings → **Authorized domains** → add the Railway domain
@@ -214,7 +214,7 @@ jmyic-live/
 | **Preview the Railway build locally** | `npm run preview` |
 | **Deploy to Railway** | `git push origin main` (auto-deploys) |
 | Deploy to Firebase Hosting (fallback) | `npm run deploy:firebase` |
-| Push database rules | `firebase deploy --only database` |
+| Push security rules | `firebase deploy --only database,firestore` |
 | Deploy functions (rare) | `npm run deploy:functions` |
 | View Firebase logs | `npm run logs:functions` |
 
