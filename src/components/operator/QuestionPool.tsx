@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { GameState, Question } from '@/lib/types';
 import { gameStateManager } from '@/lib/gameState';
 import { GameLogic } from '@/utils/gameLogic';
+import QuestionEditor from './QuestionEditor';
 
 interface QuestionPoolProps {
   questions: Question[];
@@ -19,6 +20,7 @@ export default function QuestionPool({
   loading = false 
 }: QuestionPoolProps) {
   const [processing, setProcessing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const handleSelectQuestion = async (question: Question) => {
     if (processing) return;
@@ -92,6 +94,12 @@ export default function QuestionPool({
                     index={index + 1}
                     isOneShot={isOneShot}
                     outcome={gameState.oneShotResults?.[question.id] || null}
+                    gameState={gameState}
+                    isEditing={editingId === question.id}
+                    onStartEdit={() => setEditingId(question.id)}
+                    onCancelEdit={() => setEditingId(null)}
+                    onSaved={() => { setEditingId(null); onQuestionSelected(); }}
+                    onError={onError}
                     isUsed={false}
                     isSelected={gameState.currentQuestion?.id === question.id}
                     processing={processing}
@@ -116,6 +124,12 @@ export default function QuestionPool({
                     index={index + 1}
                     isOneShot={isOneShot}
                     outcome={gameState.oneShotResults?.[question.id] || null}
+                    gameState={gameState}
+                    isEditing={editingId === question.id}
+                    onStartEdit={() => setEditingId(question.id)}
+                    onCancelEdit={() => setEditingId(null)}
+                    onSaved={() => { setEditingId(null); onQuestionSelected(); }}
+                    onError={onError}
                     isUsed={true}
                     isSelected={false}
                     processing={false}
@@ -136,6 +150,12 @@ interface QuestionCardProps {
   index: number;
   isOneShot: boolean;
   outcome: 'won' | 'lost' | null;
+  gameState: GameState;
+  isEditing: boolean;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSaved: () => void;
+  onError: (error: string) => void;
   isUsed: boolean;
   isSelected: boolean;
   processing: boolean;
@@ -147,11 +167,34 @@ function QuestionCard({
   index, 
   isOneShot,
   outcome,
+  gameState,
+  isEditing,
+  onStartEdit,
+  onCancelEdit,
+  onSaved,
+  onError,
   isUsed, 
   isSelected, 
   processing, 
   onSelect 
 }: QuestionCardProps) {
+  if (isEditing) {
+    return (
+      <div className="rounded-lg p-4 border-2 bg-gray-700 border-blue-500">
+        <h4 className="text-white font-medium mb-3">
+          Editing {isOneShot ? (question.contestant_name || 'contestant') : `question ${index}`}
+        </h4>
+        <QuestionEditor
+          question={question}
+          gameState={gameState}
+          onSaved={onSaved}
+          onCancel={onCancelEdit}
+          onError={onError}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`rounded-lg p-4 border-2 transition-all ${
       isSelected 
@@ -217,6 +260,15 @@ function QuestionCard({
               {processing ? 'Selecting...' : 'Select'}
             </button>
           )}
+
+          {/* Editing lives here for every row — including used ones, so a typo
+              can still be corrected after a question has been played. */}
+          <button
+            onClick={onStartEdit}
+            className="px-4 py-1 bg-gray-600 text-white rounded text-sm font-medium hover:bg-gray-500 transition-colors"
+          >
+            ✏️ Edit
+          </button>
         </div>
       </div>
     </div>

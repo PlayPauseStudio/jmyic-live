@@ -53,8 +53,8 @@ contestant_name,prize,question,option_a,option_b,option_c,option_d,contestant_an
 ```
 
 The number of contestants is simply however many rows you upload. `guest_answer`
-is still accepted in place of `contestant_answer`, and contestant/prize can be
-edited live from the operator panel like any other question field.
+is still accepted in place of `contestant_answer`, and contestant/prize are
+editable like any other question field.
 
 Results are recorded per contestant and land in the Excel export on a
 **Contestants** sheet, with a won/lost tally in the summary.
@@ -170,6 +170,16 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 NEXT_PUBLIC_FIREBASE_APP_ID
 NEXT_PUBLIC_ENVIRONMENT    # "local" | "staging" | "production"
 ```
+
+---
+
+## Editing Questions
+
+Every row in the **Question Pool** (**Contestants** in One Shot) has an ✏️ Edit
+button, including rows already played — so a typo can still be corrected
+afterwards. Saving writes the stored pool; if the row being edited is the one
+currently on the audience screen, the live game state is updated too and the
+display changes immediately.
 
 ---
 

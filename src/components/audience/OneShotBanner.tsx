@@ -35,35 +35,25 @@ export default function OneShotBanner({ gameState }: OneShotBannerProps) {
         ? 'bg-gradient-to-r from-red-700 to-red-600 shadow-xl shadow-red-500/40'
         : 'game-card-gradient';
 
+  // Reads as one sentence: "Vivaan playing for iPhone 16".
+  const verb = outcome === 'won' ? 'wins' : outcome === 'lost' ? 'played for' : 'playing for';
+
   return (
     <div className={`rounded-lg px-6 py-6 transition-all duration-500 ${toneClasses}`}>
-      <div className="flex items-center justify-center gap-6 flex-wrap">
-        <div className="text-center">
-          <div className="text-white text-xl xl:text-3xl uppercase tracking-widest font-bebas leading-none mb-1 opacity-80">
-            {outcome === 'won' ? 'Winner' : outcome === 'lost' ? 'Played For' : 'Playing For'}
-          </div>
-          <div className="text-white text-4xl xl:text-6xl font-bold font-bebas leading-none">
-            {name || 'Contestant'}
-          </div>
-        </div>
-
-        <div className="text-white text-4xl xl:text-6xl font-bebas opacity-50 leading-none">→</div>
-
-        <div className="text-center">
-          <div
-            className={`text-5xl xl:text-7xl font-bold font-bebas leading-none ${
-              outcome === 'lost' ? 'text-white line-through opacity-70' : 'text-yellow-300'
-            }`}
-          >
-            {prize || 'Prize'}
-          </div>
-        </div>
-
-        {outcome && (
-          <div className="text-white text-3xl xl:text-5xl font-bebas uppercase tracking-widest leading-none">
-            {outcome === 'won' ? '🎉 Wins it!' : 'Judged right'}
-          </div>
-        )}
+      <div className="text-center leading-tight">
+        <span className="text-white text-5xl xl:text-7xl font-bold font-bebas">
+          {name || 'Contestant'}
+        </span>
+        <span className="text-white text-4xl xl:text-6xl font-bebas opacity-70 mx-3">
+          {verb}
+        </span>
+        <span
+          className={`text-5xl xl:text-7xl font-bold font-bebas ${
+            outcome ? 'text-white' : 'text-yellow-300'
+          }`}
+        >
+          {prize || 'Prize'}
+        </span>
       </div>
     </div>
   );
