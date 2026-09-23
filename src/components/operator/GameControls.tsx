@@ -5,6 +5,7 @@ import { GameLogic, showAllOrNothingPanelWinModal, showAllOrNothingGuestWinModal
 import { setDoc } from 'firebase/firestore';
 import { questionsDocRef, PRIZE_TIERS } from '@/lib/firebase';
 import { downloadGameData } from '@/utils/dataExport';
+import QuestionEditor from './QuestionEditor';
 
 interface GameControlsProps {
   gameState: GameState;
@@ -15,6 +16,7 @@ interface GameControlsProps {
 export default function GameControls({ gameState, onError, onQuestionUsed }: GameControlsProps) {
   const [processing, setProcessing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [isEditingCurrent, setIsEditingCurrent] = useState(false);
   const [selectedLockLevel, setSelectedLockLevel] = useState<number>(gameState.currentQuestionNumber || 1);
   const isOneShot = GameLogic.isOneShot(gameState);
 
@@ -419,18 +421,40 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
         <div className="bg-blue-900 rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-lg font-semibold text-white">Current Question</h3>
+            {!isEditingCurrent && (
+              <button
+                onClick={() => setIsEditingCurrent(true)}
+                className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-500 transition-colors"
+              >
+                ✏️ Edit
+              </button>
+            )}
           </div>
 
-          <p className="text-gray-200 mb-4">{gameState.currentQuestion.question}</p>
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            <div className="text-gray-300">A) {gameState.currentQuestion.option_a}</div>
-            <div className="text-gray-300">B) {gameState.currentQuestion.option_b}</div>
-            <div className="text-gray-300">C) {gameState.currentQuestion.option_c}</div>
-            <div className="text-gray-300">D) {gameState.currentQuestion.option_d}</div>
-          </div>
-          <div className="text-sm text-yellow-300">
-            {isOneShot ? 'Contestant' : 'Guest'} Answer: {gameState.currentQuestion.guest_answer}
-          </div>
+          {isEditingCurrent ? (
+            /* Same editor the pool uses — saving here also writes the stored
+               pool, so the two panels can never drift apart. */
+            <QuestionEditor
+              question={gameState.currentQuestion}
+              gameState={gameState}
+              onSaved={() => { setIsEditingCurrent(false); onQuestionUsed(); }}
+              onCancel={() => setIsEditingCurrent(false)}
+              onError={onError}
+            />
+          ) : (
+            <>
+              <p className="text-gray-200 mb-4">{gameState.currentQuestion.question}</p>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <div className="text-gray-300">A) {gameState.currentQuestion.option_a}</div>
+                <div className="text-gray-300">B) {gameState.currentQuestion.option_b}</div>
+                <div className="text-gray-300">C) {gameState.currentQuestion.option_c}</div>
+                <div className="text-gray-300">D) {gameState.currentQuestion.option_d}</div>
+              </div>
+              <div className="text-sm text-yellow-300">
+                {isOneShot ? 'Contestant' : 'Guest'} Answer: {gameState.currentQuestion.guest_answer}
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="bg-gray-700 rounded-lg p-4 mb-6">

@@ -175,11 +175,18 @@ NEXT_PUBLIC_ENVIRONMENT    # "local" | "staging" | "production"
 
 ## Editing Questions
 
-Every row in the **Question Pool** (**Contestants** in One Shot) has an ✏️ Edit
-button, including rows already played — so a typo can still be corrected
-afterwards. Saving writes the stored pool; if the row being edited is the one
-currently on the audience screen, the live game state is updated too and the
-display changes immediately.
+Two places, same editor:
+
+- **Game Controls → Current Question** has an ✏️ Edit button for the question
+  currently on screen — the quickest fix mid-show.
+- **Question Pool** (**Contestants** in One Shot) has an ✏️ Edit button on every
+  row, including rows already played, so a typo can still be corrected
+  afterwards.
+
+Both mount the same `QuestionEditor`, so they cannot drift apart. Saving always
+writes the stored pool; if the row being edited is the one currently on the
+audience screen, the live game state is updated too and the display changes
+immediately.
 
 ---
 
