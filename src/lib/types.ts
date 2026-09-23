@@ -6,9 +6,25 @@ export interface Question {
   option_c: string;
   option_d: string;
   guest_answer: 'A' | 'B' | 'C' | 'D';
+
+  // One Shot format only — who is playing this question and what they win.
+  // Optional so existing classic CSVs and saved pools keep working unchanged.
+  contestant_name?: string;
+  prize?: string;
 }
 
+// 'classic'  — one guest, prize ladder, lives, lock, All or Nothing.
+// 'oneShot'  — many contestants, one question each, fixed prize, sudden death.
+export type GameFormat = 'classic' | 'oneShot';
+
 export interface GameState {
+  // Which format this show is running. Chosen once per show by the operator.
+  gameFormat: GameFormat;
+
+  // One Shot format only
+  oneShotOutcome: 'won' | 'lost' | null;          // result of the contestant on screen now
+  oneShotResults: Record<string, 'won' | 'lost'>; // questionId -> outcome, for recap + export
+
   // Current question data
   currentQuestion: Question | null;
   currentQuestionNumber: number;

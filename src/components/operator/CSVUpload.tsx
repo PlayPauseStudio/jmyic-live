@@ -18,6 +18,7 @@ export default function CSVUpload({ onSuccess, onError, gameState }: CSVUploadPr
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [processing, setProcessing] = useState(false);
+  const isOneShot = gameState?.gameFormat === 'oneShot';
 
 
   const handleFileSelect = (file: File) => {
@@ -45,17 +46,27 @@ export default function CSVUpload({ onSuccess, onError, gameState }: CSVUploadPr
 
             // Process and clean the questions data
             const questions = results.data.map((row: any, index: number) => {
-              const questionData = {
+              const questionData: Record<string, unknown> = {
                 id: `q_${Date.now()}_${index}`,
                 question: row.question || '',
                 option_a: row.option_a || '',
                 option_b: row.option_b || '',
                 option_c: row.option_c || '',
                 option_d: row.option_d || '',
-                guest_answer: row.guest_answer || '',
+                // The One Shot template calls this contestant_answer, since
+                // "guest" reads wrong when the person is a contestant. Accept
+                // either so one parser serves both templates.
+                guest_answer: row.guest_answer || row.contestant_answer || '',
                 createdAt: new Date().toISOString(),
                 rowIndex: index
               };
+
+              // One Shot columns. Only written when present, so classic CSVs
+              // don't litter the pool with empty fields.
+              const contestantName = (row.contestant_name || '').trim();
+              const prize = (row.prize || '').trim();
+              if (contestantName) questionData.contestant_name = contestantName;
+              if (prize) questionData.prize = prize;
 
               console.log(`Processed question ${index + 1}:`, questionData);
               return questionData;
@@ -118,21 +129,37 @@ export default function CSVUpload({ onSuccess, onError, gameState }: CSVUploadPr
     setDragOver(false);
   };
 
-  const downloadTemplate = () => {
-    const csvContent = `question,option_a,option_b,option_c,option_d,guest_answer
-"What is your favorite color?","Red","Blue","Green","Yellow","A"
-"What is your hobby?","Reading","Gaming","Sports","Music","B"
-"Where do you live?","City","Suburbs","Village","Mountains","C"`;
-
+  const saveCsv = (csvContent: string, filename: string) => {
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'questions_template.csv';
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
+  };
+
+  const downloadTemplate = () => {
+    saveCsv(
+      `question,option_a,option_b,option_c,option_d,guest_answer
+"What is your favorite color?","Red","Blue","Green","Yellow","A"
+"What is your hobby?","Reading","Gaming","Sports","Music","B"
+"Where do you live?","City","Suburbs","Village","Mountains","C"`,
+      'questions_template.csv'
+    );
+  };
+
+  // One Shot template — one row per contestant, carrying who plays and what they win.
+  const downloadOneShotTemplate = () => {
+    saveCsv(
+      `contestant_name,prize,question,option_a,option_b,option_c,option_d,contestant_answer
+"Shreya","iPhone 16","What is your favorite color?","Red","Blue","Green","Yellow","A"
+"Rohit","iPhone 16","What is your hobby?","Reading","Gaming","Sports","Music","B"
+"Aisha","iPhone 16","Where do you live?","City","Suburbs","Village","Mountains","C"`,
+      'oneshot_template.csv'
+    );
   };
 
 
@@ -199,26 +226,29 @@ export default function CSVUpload({ onSuccess, onError, gameState }: CSVUploadPr
         )}
       </div>
 
-      {/* Template Download */}
+      {/* Template Download — the format decides which template is the default one */}
       <div className="mt-4">
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-sm font-semibold text-white">CSV Format</h3>
           <button
-            onClick={downloadTemplate}
+            onClick={isOneShot ? downloadOneShotTemplate : downloadTemplate}
             disabled={uploading}
             className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-500 disabled:opacity-50 transition-colors"
           >
-            📥 Template
+            📥 {isOneShot ? 'One Shot Template' : 'Template'}
           </button>
         </div>
 
         <div className="bg-gray-700 rounded p-2 text-xs">
           <p className="text-gray-300 mb-1">Required columns:</p>
           <code className="text-green-400 text-xs block break-all">
-            question,option_a,option_b,option_c,option_d,guest_answer
+            {isOneShot
+              ? 'contestant_name,prize,question,option_a,option_b,option_c,option_d,contestant_answer'
+              : 'question,option_a,option_b,option_c,option_d,guest_answer'}
           </code>
           <p className="text-gray-400 text-xs mt-1">
             Answer: A, B, C, or D
+            {isOneShot && ' · one row per contestant'}
           </p>
         </div>
       </div>
@@ -232,7 +262,8 @@ export default function CSVUpload({ onSuccess, onError, gameState }: CSVUploadPr
         </div>
       </div>
 
-      {/* 75:25 Banner Control */}
+      {/* 75:25 Banner Control — classic only */}
+      {!isOneShot && (
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-white mb-3">🎯 75:25 Banner</h3>
         <div className="bg-gray-700 border border-purple-500 rounded-lg p-4">
@@ -250,8 +281,10 @@ export default function CSVUpload({ onSuccess, onError, gameState }: CSVUploadPr
           </button>
         </div>
       </div>
+      )}
 
-      {/* Soft Elimination Control */}
+      {/* Soft Elimination Control — classic only */}
+      {!isOneShot && (
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-white mb-3">💀 Soft Elimination</h3>
         <div className="bg-gray-700 border border-red-500 rounded-lg p-4">
@@ -270,6 +303,7 @@ export default function CSVUpload({ onSuccess, onError, gameState }: CSVUploadPr
           </button>
         </div>
       </div>
+      )}
 
       {/* Buzzer Control - Always Show */}
       <div className="mb-6">

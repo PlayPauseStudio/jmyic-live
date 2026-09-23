@@ -11,6 +11,7 @@ function mergeWithDefaults(raw: any): GameState {
     revealedOptions: raw?.revealedOptions || [],
     aonRevealedOptions: raw?.aonRevealedOptions || [],
     playAlongDisplayEntries: raw?.playAlongDisplayEntries || [],
+    oneShotResults: raw?.oneShotResults || {},
     lock: { ...defaultGameState.lock, ...(raw?.lock || {}) },
   };
 }
@@ -123,6 +124,9 @@ export class GameStateManager {
         ...defaultGameState,
         usedQuestions: {},
         playersResetAt: Date.now(), // signals /play clients to sign out
+        // Format is a per-show setting, not game progress — a mid-show reset
+        // must not silently flip a One Shot show back to classic.
+        gameFormat: currentState?.gameFormat || 'classic',
         documentVersion: currentState?.documentVersion || '3.0'
       });
     } catch (error) {

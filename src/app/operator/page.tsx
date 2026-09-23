@@ -9,6 +9,7 @@ import type { GameState, Question } from '@/lib/types';
 import GameControls from '@/components/operator/GameControls';
 import QuestionPool from '@/components/operator/QuestionPool';
 import CSVUpload from '@/components/operator/CSVUpload';
+import FormatToggle from '@/components/operator/FormatToggle';
 import PlayAlongPanel from '@/components/operator/PlayAlongPanel';
 import PasswordGate from '@/components/operator/PasswordGate';
 
@@ -201,6 +202,7 @@ export default function OperatorPanel() {
 
         {/* Left Column: CSV Upload + Play Along */}
         <div className="w-[30%] flex-shrink-0 flex flex-col gap-6">
+          <FormatToggle gameState={gameState} onError={handleError} />
           <CSVUpload
             onSuccess={() => loadQuestions(false)}
             onError={handleError}

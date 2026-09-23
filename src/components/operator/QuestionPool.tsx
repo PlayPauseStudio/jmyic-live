@@ -50,11 +50,12 @@ export default function QuestionPool({
 
   const availableQuestions = getAvailableQuestions();
   const usedQuestions = getUsedQuestions();
+  const isOneShot = GameLogic.isOneShot(gameState);
 
   return (
     <div className="bg-gray-800 rounded-lg p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-white">Question Pool</h2>
+        <h2 className="text-2xl font-bold text-white">{isOneShot ? 'Contestants' : 'Question Pool'}</h2>
         <div className="text-gray-300 text-sm">
           Available: {availableQuestions.length} | Used: {usedQuestions.length} | Total: {questions.length}
         </div>
@@ -75,7 +76,7 @@ export default function QuestionPool({
           {/* Available Questions */}
           <div>
             <h3 className="text-lg font-semibold text-green-400 mb-3">
-              Available Questions ({availableQuestions.length})
+              {isOneShot ? 'Yet to Play' : 'Available Questions'} ({availableQuestions.length})
             </h3>
             {availableQuestions.length === 0 ? (
               <div className="bg-gray-700 rounded-lg p-4">
@@ -89,6 +90,8 @@ export default function QuestionPool({
                     key={question.id}
                     question={question}
                     index={index + 1}
+                    isOneShot={isOneShot}
+                    outcome={gameState.oneShotResults?.[question.id] || null}
                     isUsed={false}
                     isSelected={gameState.currentQuestion?.id === question.id}
                     processing={processing}
@@ -111,6 +114,8 @@ export default function QuestionPool({
                     key={question.id}
                     question={question}
                     index={index + 1}
+                    isOneShot={isOneShot}
+                    outcome={gameState.oneShotResults?.[question.id] || null}
                     isUsed={true}
                     isSelected={false}
                     processing={false}
@@ -129,6 +134,8 @@ export default function QuestionPool({
 interface QuestionCardProps {
   question: Question;
   index: number;
+  isOneShot: boolean;
+  outcome: 'won' | 'lost' | null;
   isUsed: boolean;
   isSelected: boolean;
   processing: boolean;
@@ -138,6 +145,8 @@ interface QuestionCardProps {
 function QuestionCard({ 
   question, 
   index, 
+  isOneShot,
+  outcome,
   isUsed, 
   isSelected, 
   processing, 
@@ -153,8 +162,27 @@ function QuestionCard({
     }`}>
       <div className="flex justify-between items-start mb-3">
         <div className="flex-1">
+          {isOneShot && (
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="px-2 py-0.5 bg-blue-600 text-white rounded text-sm font-semibold">
+                {question.contestant_name || 'Unnamed contestant'}
+              </span>
+              {question.prize && (
+                <span className="px-2 py-0.5 bg-yellow-600 text-white rounded text-xs">
+                  {question.prize}
+                </span>
+              )}
+              {outcome && (
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                  outcome === 'won' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                }`}>
+                  {outcome === 'won' ? 'Won' : 'Lost'}
+                </span>
+              )}
+            </div>
+          )}
           <h4 className="text-white font-medium mb-2">
-            Question {index}: {question.question}
+            {isOneShot ? question.question : `Question ${index}: ${question.question}`}
           </h4>
           
           <div className="grid grid-cols-2 gap-2 text-sm">
@@ -165,7 +193,9 @@ function QuestionCard({
           </div>
           
           <div className="mt-2 text-sm">
-            <span className="text-yellow-400">Guest Answer: {question.guest_answer}</span>
+            <span className="text-yellow-400">
+              {isOneShot ? 'Contestant' : 'Guest'} Answer: {question.guest_answer}
+            </span>
           </div>
         </div>
 

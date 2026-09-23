@@ -98,8 +98,19 @@ export function buildWorkbook(data: GatheredGameData): XLSX.WorkBook {
 
   // -- Sheet 1: Game Summary (key / value) -----------------------------------
   const lockLevel = g?.lock?.level ?? '';
+  const isOneShot = g?.gameFormat === 'oneShot';
+  const oneShotResults = g?.oneShotResults || {};
+  const oneShotWon = Object.values(oneShotResults).filter((r) => r === 'won').length;
+  const oneShotLost = Object.values(oneShotResults).filter((r) => r === 'lost').length;
+
   const winner = (() => {
     if (!g) return '';
+    if (isOneShot) {
+      const played = oneShotWon + oneShotLost;
+      return played
+        ? `One Shot — ${played} played, ${oneShotWon} won, ${oneShotLost} lost`
+        : 'One Shot — not started';
+    }
     if (g.allOrNothingComplete) return g.allOrNothingWon ? 'Guest won All-or-Nothing (₹50,000)' : 'Panel won All-or-Nothing (₹0)';
     if (g.guestVictoryModalVisible || g.guestVictoryPending) return 'Guest Victory';
     if (g.guestLostModalVisible || g.guestLostPending) return 'Guest Lost';
@@ -111,7 +122,15 @@ export function buildWorkbook(data: GatheredGameData): XLSX.WorkBook {
   const summaryRows: [string, string | number][] = g
     ? [
         ['Exported At', new Date().toLocaleString()],
+        ['Show Format', isOneShot ? 'One Shot' : 'Classic'],
         ['Outcome', winner],
+        ...(isOneShot
+          ? ([
+              ['Contestants Played', oneShotWon + oneShotLost],
+              ['Prizes Won', oneShotWon],
+              ['Contestants Lost', oneShotLost],
+            ] as [string, string | number][])
+          : []),
         ['Current Question Number', g.currentQuestionNumber],
         ['Questions Answered', g.questionsAnswered],
         ['Current Question Text', g.currentQuestion?.question ?? ''],
@@ -245,20 +264,33 @@ export function buildWorkbook(data: GatheredGameData): XLSX.WorkBook {
   // -- Sheet 5: Questions Pool -----------------------------------------------
   const poolRows = data.questionsPool.map((q) => ({
     ID: q.id,
+    ...(isOneShot
+      ? {
+          Contestant: q.contestant_name ?? '',
+          Prize: q.prize ?? '',
+          Result: oneShotResults[q.id] === 'won'
+            ? 'Won'
+            : oneShotResults[q.id] === 'lost'
+              ? 'Lost'
+              : 'Not played',
+        }
+      : {}),
     Question: q.question,
     'Option A': q.option_a,
     'Option B': q.option_b,
     'Option C': q.option_c,
     'Option D': q.option_d,
-    'Guest Answer': q.guest_answer,
+    [isOneShot ? 'Contestant Answer' : 'Guest Answer']: q.guest_answer,
   }));
   const poolSheet = XLSX.utils.json_to_sheet(
     poolRows.length
       ? poolRows
       : [{ ID: '', Question: '', 'Option A': '', 'Option B': '', 'Option C': '', 'Option D': '', 'Guest Answer': '' }]
   );
-  poolSheet['!cols'] = [{ wch: 22 }, { wch: 50 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 12 }];
-  XLSX.utils.book_append_sheet(wb, poolSheet, 'Questions Pool');
+  poolSheet['!cols'] = isOneShot
+    ? [{ wch: 22 }, { wch: 20 }, { wch: 18 }, { wch: 12 }, { wch: 50 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 16 }]
+    : [{ wch: 22 }, { wch: 50 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, poolSheet, isOneShot ? 'Contestants' : 'Questions Pool');
 
   // -- Sheet 6: Question Meta (what play-along was graded against) -----------
   const metaRows = Object.keys(data.questionsMeta)

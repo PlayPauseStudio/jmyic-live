@@ -53,6 +53,10 @@ export function playAlongResponsesRef(questionId: string) {
 
 // Default game state  
 export const defaultGameState: GameState = {
+  gameFormat: 'classic',
+  oneShotOutcome: null,
+  oneShotResults: {},
+
   currentQuestion: null,
   currentQuestionNumber: 1,
   panelGuess: '',

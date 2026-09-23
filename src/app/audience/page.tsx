@@ -5,6 +5,7 @@ import { gameStateManager } from '@/lib/gameState';
 import { soundPlayer } from '@/lib/sounds';
 import type { GameState } from '@/lib/types';
 import PrizeLadder from '@/components/audience/PrizeLadder';
+import OneShotBanner, { OneShotPlayerCount } from '@/components/audience/OneShotBanner';
 import QuestionDisplay from '@/components/audience/QuestionDisplay';
 import LivesDisplay from '@/components/audience/LivesDisplay';
 import GameOverDisplay from '@/components/audience/GameOverDisplay';
@@ -129,6 +130,10 @@ export default function AudienceDisplay() {
     return <GameOverDisplay gameState={gameState} />;
   }
 
+  // One Shot has no lives, lock or ladder — the header carries a player counter
+  // and the ladder slot becomes the contestant / prize banner.
+  const isOneShot = GameLogic.isOneShot(gameState);
+
   return (
     <div className="bg-cover flex flex-col h-screen overflow-hidden"
       style={{ backgroundImage: "url('/images/backgrounds/BG-1.jpg')", backgroundColor: "#1a3a2e" }}>
@@ -136,9 +141,9 @@ export default function AudienceDisplay() {
       <div className="px-4 py-2 flex flex-col h-full max-h-screen">
         {/* Header - Fixed Height with viewport units */}
         <div className="flex items-center justify-between mb-3 flex-shrink-0" style={{ height: '12vh' }}>
-          {/* Left: Lives */}
+          {/* Left: Lives (classic) / Player counter (One Shot) */}
           <div className="w-1/4 text-center">
-            <LivesDisplay gameState={gameState} />
+            {isOneShot ? <OneShotPlayerCount gameState={gameState} /> : <LivesDisplay gameState={gameState} />}
           </div>
 
           {/* Center: Title */}
@@ -146,9 +151,9 @@ export default function AudienceDisplay() {
             <h1 className="text-6xl xl:text-7xl font-bold text-white font-bebas leading-tight">Judge Me If You Can</h1>
           </div>
 
-          {/* Right: Lock Status */}
+          {/* Right: Lock Status — classic only, One Shot has nothing to lock */}
           <div className="w-1/4 flex flex-col items-center justify-center">
-            {gameState.lock.placed ? (
+            {isOneShot ? null : gameState.lock.placed ? (
               <>
                 <div className="flex items-center gap-2">
                   <div className="text-gray-300 text-3xl xl:text-4xl uppercase tracking-wide font-bebas">Lock</div>
@@ -175,9 +180,9 @@ export default function AudienceDisplay() {
           </div>
         </div>
 
-        {/* Prize Tier - natural height + controlled gap below */}
+        {/* Prize Tier (classic) / Contestant + prize banner (One Shot) */}
         <div className="mb-4 flex-shrink-0">
-          <PrizeLadder gameState={gameState} />
+          {isOneShot ? <OneShotBanner gameState={gameState} /> : <PrizeLadder gameState={gameState} />}
         </div>
 
         {/* Question Box - fills remaining space */}

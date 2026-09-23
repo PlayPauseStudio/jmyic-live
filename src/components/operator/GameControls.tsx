@@ -24,8 +24,11 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
     option_c: '',
     option_d: '',
     guest_answer: 'A' as 'A' | 'B' | 'C' | 'D',
+    contestant_name: '',
+    prize: '',
   });
   const [showAnswerChangeWarning, setShowAnswerChangeWarning] = useState(false);
+  const isOneShot = GameLogic.isOneShot(gameState);
 
   // Update selected lock level when current question changes
   useEffect(() => {
@@ -419,6 +422,8 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
       option_c: gameState.currentQuestion.option_c,
       option_d: gameState.currentQuestion.option_d,
       guest_answer: resolveGuestAnswerLetter(gameState.currentQuestion),
+      contestant_name: gameState.currentQuestion.contestant_name || '',
+      prize: gameState.currentQuestion.prize || '',
     });
     setIsEditingQuestion(true);
   };
@@ -438,6 +443,15 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
         option_d: editForm.option_d.trim(),
         guest_answer: editForm.guest_answer,
       };
+
+      // One Shot fields. Blank means "not set", and the key is removed rather
+      // than written as undefined — both Firestore and RTDB reject undefined.
+      const contestantName = editForm.contestant_name.trim();
+      const prizeText = editForm.prize.trim();
+      if (contestantName) updatedQuestion.contestant_name = contestantName;
+      else delete updatedQuestion.contestant_name;
+      if (prizeText) updatedQuestion.prize = prizeText;
+      else delete updatedQuestion.prize;
 
       // Update live game state
       await gameStateManager.updateGameState({ currentQuestion: updatedQuestion });
@@ -533,6 +547,28 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
 
           {isEditingQuestion ? (
             <div className="space-y-3">
+              {isOneShot && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Contestant</label>
+                    <input
+                      type="text"
+                      value={editForm.contestant_name}
+                      onChange={(e) => setEditForm(f => ({ ...f, contestant_name: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-500 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Prize</label>
+                    <input
+                      type="text"
+                      value={editForm.prize}
+                      onChange={(e) => setEditForm(f => ({ ...f, prize: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-500 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-xs text-gray-400 mb-1">Question</label>
                 <textarea
@@ -557,7 +593,7 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
                 );
               })}
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Guest Answer</label>
+                <label className="block text-xs text-gray-400 mb-1">{isOneShot ? 'Contestant Answer' : 'Guest Answer'}</label>
                 <select
                   value={editForm.guest_answer}
                   onChange={(e) => setEditForm(f => ({ ...f, guest_answer: e.target.value as 'A' | 'B' | 'C' | 'D' }))}
@@ -615,7 +651,7 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
                 <div className="text-gray-300">D) {gameState.currentQuestion.option_d}</div>
               </div>
               <div className="text-sm text-yellow-300">
-                Guest Answer: {gameState.currentQuestion.guest_answer}
+                {isOneShot ? 'Contestant' : 'Guest'} Answer: {gameState.currentQuestion.guest_answer}
               </div>
             </>
           )}
@@ -739,14 +775,14 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
       {/* Step 3: Reveal Guest Answer (conditional) - Hide during All or Nothing */}
       {!gameState.allOrNothingActive && (
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-white mb-3">Step 3: Reveal Guest Answer</h3>
+          <h3 className="text-lg font-semibold text-white mb-3">Step 3: Reveal {isOneShot ? 'Contestant' : 'Guest'} Answer</h3>
           {gameState.needsManualReveal ? (
             <button
               onClick={handleRevealGuestAnswer}
               disabled={processing || gameState.currentQuestionAnswerRevealed}
               className="px-6 py-2 bg-red-600 text-white rounded font-semibold hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {processing ? 'Revealing...' : 'Reveal Guest Answer'}
+              {processing ? 'Revealing...' : `Reveal ${isOneShot ? 'Contestant' : 'Guest'} Answer`}
             </button>
           ) : (
             <div className="text-gray-400">
@@ -756,8 +792,8 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
         </div>
       )}
 
-      {/* Hide Option Control - Hide during All or Nothing */}
-      {!gameState.allOrNothingActive && (
+      {/* Hide Option Control - classic only, and hidden during All or Nothing */}
+      {!isOneShot && !gameState.allOrNothingActive && (
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-white mb-3">Hide Option (One-Time Use)</h3>
           {gameState.hideOptionUsed ? (
@@ -792,8 +828,8 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
         </div>
       )}
 
-      {/* Lock Controls - Hide during All or Nothing */}
-      {!gameState.allOrNothingActive && (
+      {/* Lock Controls - classic only, and hidden during All or Nothing */}
+      {!isOneShot && !gameState.allOrNothingActive && (
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-white mb-3">Lock Control</h3>
           {GameLogic.canPlaceLock(gameState) ? (

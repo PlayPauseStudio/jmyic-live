@@ -21,6 +21,46 @@ and play-along records, and Firebase Auth (Google) for player sign-in.
 
 ---
 
+## Show Formats
+
+The operator picks a format once per show, top-left of the control panel.
+
+### Classic
+
+One guest, up to 7 questions, climbing the prize ladder. Lives, lock,
+All or Nothing, hide-option and the 75:25 banner all apply. Unchanged.
+
+### One Shot
+
+Many contestants, **one question each**, sudden death:
+
+- Judge guesses **right** → that contestant loses, round over immediately
+- Judge guesses **wrong** → operator reveals, contestant **wins their prize**
+- Every contestant plays for their own prize, so any number of them can win
+
+No ladder, lives, lock, All or Nothing, hide-option or 75:25 — those controls
+are hidden. Option reveals, the buzzer and play-along all still work.
+
+The audience display swaps the prize ladder for a contestant/prize banner that
+turns green on a win and red on a loss, and the header shows a player counter
+instead of lives.
+
+**CSV template** — one row per contestant (download it from the operator panel):
+
+```
+contestant_name,prize,question,option_a,option_b,option_c,option_d,contestant_answer
+"Shreya","iPhone 16","What is your favorite color?","Red","Blue","Green","Yellow","A"
+```
+
+The number of contestants is simply however many rows you upload. `guest_answer`
+is still accepted in place of `contestant_answer`, and contestant/prize can be
+edited live from the operator panel like any other question field.
+
+Results are recorded per contestant and land in the Excel export on a
+**Contestants** sheet, with a won/lost tally in the summary.
+
+---
+
 ## Local Development
 
 ```bash

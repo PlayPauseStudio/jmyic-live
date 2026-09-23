@@ -4,6 +4,50 @@ import { gameStateManager } from '@/lib/gameState';
 
 export class GameLogic {
   /**
+   * True when this show is running the One Shot format (many contestants,
+   * one question each, sudden death, fixed prize — no ladder, lives or lock).
+   */
+  static isOneShot(gameState: GameState): boolean {
+    return gameState.gameFormat === 'oneShot';
+  }
+
+  /**
+   * Which contestant this is, counted by how many have already finished.
+   * 1-based, so the first contestant up is "Player 1".
+   */
+  static getOneShotPlayerNumber(gameState: GameState): number {
+    return Object.keys(gameState.oneShotResults || {}).length + 1;
+  }
+
+  /**
+   * One Shot round resolution. The judge guessing right means the contestant
+   * loses; guessing wrong means they win their prize. Either way the round is
+   * over — there is no advancement, no life to spend and no next question for
+   * this person.
+   */
+  private static resolveOneShot(
+    gameState: GameState,
+    isPanelCorrect: boolean
+  ): Partial<GameState> {
+    const question = gameState.currentQuestion!;
+    const outcome: 'won' | 'lost' = isPanelCorrect ? 'lost' : 'won';
+
+    return {
+      oneShotOutcome: outcome,
+      oneShotResults: {
+        ...(gameState.oneShotResults || {}),
+        [question.id]: outcome
+      },
+      currentQuestionAnswerRevealed: true,
+      needsManualReveal: false,
+      usedQuestions: {
+        ...gameState.usedQuestions,
+        [question.id]: true
+      }
+    };
+  }
+
+  /**
    * Calculate prize for given question level
    */
   static getPrizeForLevel(level: number): number {
@@ -140,6 +184,22 @@ export class GameLogic {
       needsManualReveal: needsReveal
     };
 
+    // One Shot: the judge being right ends this contestant's round immediately.
+    // If the judge is wrong we still wait for the operator to reveal, exactly
+    // like classic, so the reveal keeps its dramatic beat.
+    if (this.isOneShot(gameState)) {
+      if (isPanelCorrect) {
+        return {
+          ...updates,
+          ...this.resolveOneShot(gameState, true),
+          panelGuess: '',
+          panelGuessSubmitted: false,
+          panelGuessChecked: false
+        };
+      }
+      return updates;
+    }
+
     // If Panel = Guest (panel correct), complete the round immediately
     if (isPanelCorrect) {
       // Panel wins - guest loses a life and stays at current level
@@ -219,6 +279,14 @@ export class GameLogic {
       currentQuestionAnswerRevealed: true,
       needsManualReveal: false
     };
+
+    // One Shot: reveal settles the round outright — win or lose, no ladder.
+    if (this.isOneShot(gameState)) {
+      return {
+        ...updates,
+        ...this.resolveOneShot(gameState, isPanelCorrect)
+      };
+    }
 
     if (!isPanelCorrect) {
       // Panel WRONG = Guest WINS the round! 🎉
@@ -327,6 +395,8 @@ export class GameLogic {
    * Check if lock can be placed
    */
   static canPlaceLock(gameState: GameState): boolean {
+    // One Shot has no ladder, so there is nothing to lock in.
+    if (this.isOneShot(gameState)) return false;
     // Lock is always available as long as it hasn't been placed yet and game isn't over
     return !gameState.lock.placed && !gameState.gameOver;
   }
@@ -362,6 +432,8 @@ export class GameLogic {
    * Check if All or Nothing phase can be started
    */
   static canStartAllOrNothing(gameState: GameState): boolean {
+    // All or Nothing is a classic-format endgame — One Shot has no such phase.
+    if (this.isOneShot(gameState)) return false;
     return gameState.softEliminated && !gameState.allOrNothingActive && !gameState.allOrNothingComplete && !gameState.gameOver;
   }
 
@@ -470,6 +542,28 @@ export class GameLogic {
         aonRevealedOptions: [],
         currentQuestionStartTime: Date.now(),
         playAlongAnswerWindowOpen: true
+      };
+    }
+
+    // One Shot: bringing a contestant up starts a fresh sudden-death round.
+    // No advancement, no prize change, and the previous contestant's result is
+    // cleared off the screen (it stays recorded in oneShotResults).
+    if (this.isOneShot(gameState)) {
+      return {
+        currentQuestion: newQuestion,
+        panelGuess: '',
+        panelGuessSubmitted: false,
+        panelGuessChecked: false,
+        currentQuestionAnswerRevealed: false,
+        needsManualReveal: false,
+        oneShotOutcome: null,
+        revealedOptions: [],
+        currentQuestionStartTime: Date.now(),
+        playAlongAnswerWindowOpen: true,
+        usedQuestions: {
+          ...gameState.usedQuestions,
+          [newQuestion.id]: true
+        }
       };
     }
 
