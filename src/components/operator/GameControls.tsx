@@ -382,13 +382,59 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
     }
   };
 
-  const handleResetRevealedOptions = () => {
-    if (!gameState.currentQuestion) return;
-    if (gameState.allOrNothingActive) {
-      gameStateManager.updateGameStateBackground({ aonRevealedOptions: [] });
-    } else {
-      const updates = GameLogic.resetRevealedOptions(gameState);
-      gameStateManager.updateGameStateBackground(updates);
+  /**
+   * Master reset for the round on screen: back to step 1 of this question.
+   *
+   * Hiding the revealed options alone left the guess, the check and the reveal
+   * standing — and in classic, the life or ladder step the round had already
+   * awarded. This restores the snapshot taken when the question was selected,
+   * so all of that is rewound together.
+   */
+  const handleResetQuestion = async () => {
+    if (processing || !gameState.currentQuestion) return;
+
+    // Only confirm once the round has actually scored something. Clearing a
+    // few revealed options is not worth a dialog mid-show.
+    const hasScored =
+      gameState.panelGuessChecked ||
+      gameState.currentQuestionAnswerRevealed ||
+      !!gameState.oneShotOutcome;
+
+    if (hasScored && !confirm(
+      [
+        'Reset this question back to step 1?',
+        '',
+        'The guess, the reveal and anything this round scored (a life, a ladder',
+        'step, or the contestant result) will be undone. Earlier questions are',
+        'not affected.',
+      ].join('\n')
+    )) {
+      return;
+    }
+
+    try {
+      setProcessing(true);
+      const roundStart = await gameStateManager.getRoundStart();
+
+      if (roundStart && roundStart.currentQuestion?.id === gameState.currentQuestion.id) {
+        // Keep the pool bookkeeping as it is now — the question stays used,
+        // and play-along reopens for a fresh run at it.
+        await gameStateManager.updateGameState({
+          ...roundStart,
+          usedQuestions: gameState.usedQuestions,
+          currentQuestionStartTime: Date.now(),
+          playAlongAnswerWindowOpen: true,
+        });
+      } else {
+        // No snapshot for this question — clear what we safely can.
+        await gameStateManager.updateGameState(GameLogic.resetQuestionFallback(gameState));
+      }
+
+      onQuestionUsed();
+    } catch (error) {
+      onError(`Failed to reset question: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -505,11 +551,11 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
               return (
                 <>
                   <button
-                    onClick={handleResetRevealedOptions}
-                    disabled={activeRevealed.length === 0}
+                    onClick={handleResetQuestion}
+                    disabled={processing}
                     className="w-full px-4 py-2 bg-orange-600 text-white rounded font-semibold hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    🔄 Reset Reveals (Hide All Options)
+                    {processing ? 'Resetting...' : '🔄 Reset Question (Back to Step 1)'}
                   </button>
                   <button
                     onClick={handleRevealAllOptions}

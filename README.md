@@ -173,6 +173,27 @@ NEXT_PUBLIC_ENVIRONMENT    # "local" | "staging" | "production"
 
 ---
 
+## Reset Question
+
+The orange **Reset Question (Back to Step 1)** button in Game Controls rewinds the
+round on screen: revealed options, the panel guess, the check and the reveal all
+go, *and* so does anything that round scored — a life spent, a ladder step taken,
+or a One Shot contestant's win/lose result. Earlier questions are untouched.
+
+It works by snapshotting the game state when a question is selected and restoring
+it. The snapshot lives in `games/game1_roundStart`, a **sibling** of the game state
+node rather than a child, so audience screens don't re-download it on every change.
+
+The question stays marked used, so it doesn't jump back into the available pool.
+It asks for confirmation only once the round has actually scored something —
+clearing a few revealed options isn't worth a dialog mid-show.
+
+If no snapshot exists (a game already running from before this existed), it falls
+back to clearing everything visible. That fallback cannot restore a spent life,
+because the earlier value isn't recoverable from current state.
+
+---
+
 ## Editing Questions
 
 Two places, same editor:

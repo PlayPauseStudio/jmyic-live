@@ -1,6 +1,6 @@
 import { get, set, update, onValue, remove } from 'firebase/database';
 import { collection, getDocs, deleteDoc } from 'firebase/firestore';
-import { gameRtdbRef, defaultGameState, db, playAlongRtdbRoot, playAlongAnswersRtdbRef } from './firebase';
+import { gameRtdbRef, roundStartRtdbRef, defaultGameState, db, playAlongRtdbRoot, playAlongAnswersRtdbRef } from './firebase';
 import type { GameState } from './types';
 
 function mergeWithDefaults(raw: any): GameState {
@@ -111,6 +111,24 @@ export class GameStateManager {
     return this.currentState;
   }
 
+  /**
+   * Remember what the state looked like at step 1 of the current question, so
+   * "Reset Question" can rewind the round — including the life or result the
+   * round has already awarded.
+   */
+  async saveRoundStart(state: GameState): Promise<void> {
+    await set(roundStartRtdbRef, { ...state, lastActivity: new Date().toISOString() });
+  }
+
+  async getRoundStart(): Promise<GameState | null> {
+    const snapshot = await get(roundStartRtdbRef);
+    return snapshot.exists() ? mergeWithDefaults(snapshot.val()) : null;
+  }
+
+  async clearRoundStart(): Promise<void> {
+    await remove(roundStartRtdbRef);
+  }
+
   async resetPlayAlongAnswers(): Promise<void> {
     await remove(playAlongRtdbRoot);
   }
@@ -120,6 +138,7 @@ export class GameStateManager {
       const currentState = await this.getCurrentGameState();
       // Delete play-along answers AND registered users (old audience is cleared out)
       await this.resetPlayAlongData();
+      await this.clearRoundStart();
       await this.updateGameState({
         ...defaultGameState,
         usedQuestions: {},
@@ -137,6 +156,7 @@ export class GameStateManager {
 
   async resetEverything(): Promise<void> {
     try {
+      await this.clearRoundStart();
       await set(gameRtdbRef, {
         ...defaultGameState,
         playersResetAt: Date.now(), // signals /play clients to sign out

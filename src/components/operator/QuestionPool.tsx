@@ -34,6 +34,10 @@ export default function QuestionPool({
       // Update game state with calculated changes
       await gameStateManager.updateGameState(updates);
 
+      // Remember step 1 of this round so "Reset Question" can rewind to it,
+      // including any life or result the round goes on to award.
+      await gameStateManager.saveRoundStart({ ...gameState, ...updates } as GameState);
+
       onQuestionSelected();
     } catch (error) {
       onError('Failed to select question');

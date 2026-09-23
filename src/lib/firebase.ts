@@ -23,6 +23,13 @@ export const db = getFirestore(app);
 export const rtdb = getDatabase(app);
 export const gameRtdbRef = ref(rtdb, 'games/game1');
 
+// Snapshot of the game state at the moment a question was selected, used by
+// "Reset Question" to rewind the current round. Deliberately a SIBLING of
+// games/game1, not a child: every audience screen subscribes to game1, and a
+// snapshot stored inside it would be re-downloaded by all of them on every
+// single state change.
+export const roundStartRtdbRef = ref(rtdb, 'games/game1_roundStart');
+
 // Play-along RTDB refs — answers keyed by questionNumber then uid
 export const playAlongRtdbRoot = ref(rtdb, 'playAlong');
 export const playAlongAnswersRtdbRef = ref(rtdb, 'playAlong/answers');

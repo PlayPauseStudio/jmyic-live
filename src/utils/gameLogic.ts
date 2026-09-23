@@ -693,6 +693,40 @@ export class GameLogic {
   }
 
   /**
+   * Best-effort rewind of the current question when no round-start snapshot
+   * exists (a game already in progress before snapshots existed, or one
+   * resumed after a reset).
+   *
+   * This clears everything the round shows on screen, but it CANNOT restore a
+   * life already spent or a ladder step already taken, because the value those
+   * had before the round is not recoverable from the current state. The
+   * snapshot path handles those; this is the safety net.
+   */
+  static resetQuestionFallback(gameState: GameState): Partial<GameState> {
+    const updates: Partial<GameState> = {
+      panelGuess: '',
+      panelGuessSubmitted: false,
+      panelGuessChecked: false,
+      currentQuestionAnswerRevealed: false,
+      needsManualReveal: false,
+      revealedOptions: [],
+      aonRevealedOptions: [],
+      currentQuestionStartTime: Date.now(),
+      playAlongAnswerWindowOpen: true,
+    };
+
+    if (this.isOneShot(gameState)) {
+      updates.oneShotOutcome = null;
+      // Drop this contestant's recorded result so the round can be replayed.
+      const results = { ...(gameState.oneShotResults || {}) };
+      if (gameState.currentQuestion) delete results[gameState.currentQuestion.id];
+      updates.oneShotResults = results;
+    }
+
+    return updates;
+  }
+
+  /**
    * Reveal all remaining hidden options at once, preserving order of already-revealed ones
    */
   static revealAllOptions(gameState: GameState): Partial<GameState> {
