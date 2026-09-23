@@ -95,7 +95,26 @@ export default function QuestionEditor({
 
       // Only touch the live game state when this is the question on screen.
       if (isLive) {
-        await gameStateManager.updateGameState({ currentQuestion: updatedQuestion });
+        // If this round already played out under the old answer, its result has
+        // to be recomputed — otherwise the screen keeps showing that the
+        // contestant won when the corrected answer means they lost.
+        const { updates, classicNeedsReset } =
+          GameLogic.recalculateAfterAnswerEdit(gameState, updatedQuestion);
+
+        await gameStateManager.updateGameState({
+          currentQuestion: updatedQuestion,
+          ...updates,
+        });
+
+        if (classicNeedsReset) {
+          // Classic scoring is not flipped silently — a life and a ladder step
+          // are involved, so the operator decides.
+          onError(
+            'Saved, but this round was already scored under the old answer and ' +
+            'the result now flips. Use "Reset Question (Back to Step 1)" and ' +
+            'play the round again so the life and prize level are right.'
+          );
+        }
       }
 
       onSaved();

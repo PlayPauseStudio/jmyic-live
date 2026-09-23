@@ -209,6 +209,16 @@ writes the stored pool; if the row being edited is the one currently on the
 audience screen, the live game state is updated too and the display changes
 immediately.
 
+**Correcting the answer on a round that already played:**
+
+- **One Shot** recomputes the result. Correcting the answer so the judge turns
+  out to have been right flips "Ananya wins iPhone 16" to "Ananya played for
+  iPhone 16" on the spot.
+- **Classic** does *not* re-score silently — flipping the result there means
+  taking back or re-awarding a life and a ladder step. The save goes through and
+  you get a message telling you to use **Reset Question** and play the round
+  again, so the life and prize level end up right.
+
 ---
 
 ## Operator Panel Password Setup (one-time)

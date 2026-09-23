@@ -189,12 +189,12 @@ export class GameLogic {
     // like classic, so the reveal keeps its dramatic beat.
     if (this.isOneShot(gameState)) {
       if (isPanelCorrect) {
+        // Keep the guess on the record. The round is over, so there is nothing
+        // to prepare for, and the guess is needed both to keep Step 1 disabled
+        // and to recompute the result if the answer is corrected later.
         return {
           ...updates,
-          ...this.resolveOneShot(gameState, true),
-          panelGuess: '',
-          panelGuessSubmitted: false,
-          panelGuessChecked: false
+          ...this.resolveOneShot(gameState, true)
         };
       }
       return updates;
@@ -690,6 +690,60 @@ export class GameLogic {
     return {
       revealedOptions: []
     };
+  }
+
+  /**
+   * A question's answer can be corrected after its round has already been
+   * played — a wrong value in the CSV, usually.
+   *
+   * One Shot: the stored win/lose result is recomputed against the corrected
+   * answer, because nothing else depends on it. Classic is deliberately NOT
+   * auto-corrected: flipping it there means taking back or re-awarding a life
+   * and a ladder step, which the operator should do explicitly with Reset
+   * Question rather than have happen silently under a text edit.
+   */
+  static recalculateAfterAnswerEdit(
+    gameState: GameState,
+    updatedQuestion: Question
+  ): { updates: Partial<GameState>; classicNeedsReset: boolean } {
+    const none = { updates: {}, classicNeedsReset: false };
+    const guess = gameState.panelGuess;
+    if (!guess || !gameState.currentQuestion) return none;
+    if (gameState.currentQuestion.id !== updatedQuestion.id) return none;
+
+    const nowCorrect = this.isPanelGuessCorrectWithContext(
+      guess, updatedQuestion.guest_answer, updatedQuestion
+    );
+
+    if (this.isOneShot(gameState)) {
+      // Only once the round has actually resolved. Mid-round the operator has
+      // still to press Reveal, and that already reads the corrected question.
+      if (!gameState.oneShotOutcome) return none;
+
+      const outcome: 'won' | 'lost' = nowCorrect ? 'lost' : 'won';
+      if (outcome === gameState.oneShotOutcome) return none;
+
+      return {
+        updates: {
+          oneShotOutcome: outcome,
+          oneShotResults: {
+            ...(gameState.oneShotResults || {}),
+            [updatedQuestion.id]: outcome
+          },
+          needsManualReveal: false,
+          currentQuestionAnswerRevealed: true
+        },
+        classicNeedsReset: false
+      };
+    }
+
+    // Classic: report whether the edit flips an already-scored round.
+    const scored = gameState.panelGuessChecked || gameState.currentQuestionAnswerRevealed;
+    if (!scored) return none;
+    const wasCorrect = this.isPanelGuessCorrectWithContext(
+      guess, gameState.currentQuestion.guest_answer, gameState.currentQuestion
+    );
+    return { updates: {}, classicNeedsReset: wasCorrect !== nowCorrect };
   }
 
   /**
