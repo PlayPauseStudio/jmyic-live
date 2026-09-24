@@ -42,8 +42,13 @@ No ladder, lives, lock, All or Nothing, hide-option or 75:25 — those controls
 are hidden. Option reveals, the buzzer and play-along all still work.
 
 The audience display swaps the prize ladder for a contestant/prize banner that
-turns green on a win and red on a loss, the header shows a player counter
-instead of lives, and the show title reads **Judge The Deal If You Can**.
+turns green on a win and red on a loss, and the show title reads
+**Judge The Deal If You Can**. The banner carries the player number on its left
+edge; the header's lives slot is empty in this format.
+
+```
+ 10.                 Arjun playing for iPhone 16
+```
 
 **CSV template** — one row per contestant (download it from the operator panel):
 

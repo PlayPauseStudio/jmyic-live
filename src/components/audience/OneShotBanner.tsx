@@ -16,6 +16,11 @@ export default function OneShotBanner({ gameState }: OneShotBannerProps) {
   const prize = question?.prize?.trim();
   const outcome = gameState.oneShotOutcome;
 
+  // Which contestant this is. The result is recorded the moment the round
+  // resolves, so once resolved the count already includes this player.
+  const played = Object.keys(gameState.oneShotResults || {}).length;
+  const playerNumber = Math.max(outcome ? played : played + 1, 1);
+
   // Nothing selected yet — hold the space so the layout doesn't jump when the
   // operator brings the first contestant up.
   if (!question) {
@@ -39,8 +44,14 @@ export default function OneShotBanner({ gameState }: OneShotBannerProps) {
   const verb = outcome === 'won' ? 'wins' : outcome === 'lost' ? 'played for' : 'playing for';
 
   return (
-    <div className={`rounded-lg px-6 py-6 transition-all duration-500 ${toneClasses}`}>
-      <div className="text-center leading-tight">
+    <div className={`relative rounded-lg px-6 py-6 transition-all duration-500 ${toneClasses}`}>
+      {/* Pinned to the left edge so the sentence stays optically centred in the
+          box no matter how wide the number gets. */}
+      <div className="absolute left-6 top-1/2 -translate-y-1/2 text-white text-4xl xl:text-6xl font-bold font-bebas leading-none opacity-80">
+        {playerNumber}.
+      </div>
+
+      <div className="text-center leading-tight px-20">
         <span className="text-white text-5xl xl:text-7xl font-bold font-bebas">
           {name || 'Contestant'}
         </span>
@@ -54,25 +65,6 @@ export default function OneShotBanner({ gameState }: OneShotBannerProps) {
         >
           {prize || 'Prize'}
         </span>
-      </div>
-    </div>
-  );
-}
-
-/** Small header counter: which contestant is currently up. */
-export function OneShotPlayerCount({ gameState }: OneShotBannerProps) {
-  const played = Object.keys(gameState.oneShotResults || {}).length;
-  const current = gameState.currentQuestion
-    ? (gameState.oneShotOutcome ? played : played + 1)
-    : played;
-
-  return (
-    <div className="flex flex-col items-center justify-center">
-      <div className="text-gray-400 text-2xl xl:text-3xl uppercase tracking-widest font-bebas leading-none">
-        Player
-      </div>
-      <div className="text-white text-4xl xl:text-5xl font-bold font-bebas leading-none">
-        {Math.max(current, 1)}
       </div>
     </div>
   );

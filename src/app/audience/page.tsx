@@ -5,7 +5,7 @@ import { gameStateManager } from '@/lib/gameState';
 import { soundPlayer } from '@/lib/sounds';
 import type { GameState } from '@/lib/types';
 import PrizeLadder from '@/components/audience/PrizeLadder';
-import OneShotBanner, { OneShotPlayerCount } from '@/components/audience/OneShotBanner';
+import OneShotBanner from '@/components/audience/OneShotBanner';
 import QuestionDisplay from '@/components/audience/QuestionDisplay';
 import LivesDisplay from '@/components/audience/LivesDisplay';
 import GameOverDisplay from '@/components/audience/GameOverDisplay';
@@ -141,9 +141,10 @@ export default function AudienceDisplay() {
       <div className="px-4 py-2 flex flex-col h-full max-h-screen">
         {/* Header - Fixed Height with viewport units */}
         <div className="flex items-center justify-between mb-3 flex-shrink-0" style={{ height: '12vh' }}>
-          {/* Left: Lives (classic) / Player counter (One Shot) */}
+          {/* Left: Lives — classic only. One Shot carries its player number
+              inside the contestant banner instead. */}
           <div className="w-1/4 text-center">
-            {isOneShot ? <OneShotPlayerCount gameState={gameState} /> : <LivesDisplay gameState={gameState} />}
+            {isOneShot ? null : <LivesDisplay gameState={gameState} />}
           </div>
 
           {/* Center: Title */}
