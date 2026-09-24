@@ -42,8 +42,8 @@ No ladder, lives, lock, All or Nothing, hide-option or 75:25 — those controls
 are hidden. Option reveals, the buzzer and play-along all still work.
 
 The audience display swaps the prize ladder for a contestant/prize banner that
-turns green on a win and red on a loss, and the header shows a player counter
-instead of lives.
+turns green on a win and red on a loss, the header shows a player counter
+instead of lives, and the show title reads **Judge The Deal If You Can**.
 
 **CSV template** — one row per contestant (download it from the operator panel):
 
@@ -170,6 +170,15 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 NEXT_PUBLIC_FIREBASE_APP_ID
 NEXT_PUBLIC_ENVIRONMENT    # "local" | "staging" | "production"
 ```
+
+---
+
+## Revealing Options
+
+Options are revealed one at a time in any order, and each revealed option gets an
+**↩ Hide** button to put it back — for undoing a single misclick without losing
+the reveal order of the others. Re-revealing appends it at the end. Works in both
+formats, and during All or Nothing.
 
 ---
 

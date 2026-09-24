@@ -148,7 +148,9 @@ export default function AudienceDisplay() {
 
           {/* Center: Title */}
           <div className="w-2/4 text-center">
-            <h1 className="text-6xl xl:text-7xl font-bold text-white font-bebas leading-tight">Judge Me If You Can</h1>
+            <h1 className="text-6xl xl:text-7xl font-bold text-white font-bebas leading-tight">
+              {isOneShot ? 'Judge The Deal If You Can' : 'Judge Me If You Can'}
+            </h1>
           </div>
 
           {/* Right: Lock Status — classic only, One Shot has nothing to lock */}

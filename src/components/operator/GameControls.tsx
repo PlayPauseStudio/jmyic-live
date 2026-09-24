@@ -368,6 +368,18 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
     }
   };
 
+  const handleUnrevealOption = (option: 'A' | 'B' | 'C' | 'D') => {
+    if (!gameState.currentQuestion) return;
+    if (gameState.allOrNothingActive) {
+      const current = gameState.aonRevealedOptions || [];
+      gameStateManager.updateGameStateBackground({
+        aonRevealedOptions: current.filter(o => o !== option)
+      });
+    } else {
+      gameStateManager.updateGameStateBackground(GameLogic.unrevealOption(gameState, option));
+    }
+  };
+
   const handleRevealAllOptions = () => {
     if (!gameState.currentQuestion) return;
     if (gameState.allOrNothingActive) {
@@ -530,17 +542,28 @@ export default function GameControls({ gameState, onError, onQuestionUsed }: Gam
                     option === 'C' ? gameState.currentQuestion!.option_c :
                       gameState.currentQuestion!.option_d;
                 return (
-                  <button
-                    key={option}
-                    onClick={() => handleRevealOption(option)}
-                    disabled={isRevealed}
-                    className={`px-4 py-3 rounded font-semibold transition-colors text-left ${isRevealed
-                        ? 'bg-green-600 text-white cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-500'
-                      } disabled:opacity-50`}
-                  >
-                    <span className="font-bold">{option}:</span> {isRevealed ? '✓ ' : ''}{optionText}
-                  </button>
+                  <div key={option} className="flex gap-2">
+                    <button
+                      onClick={() => handleRevealOption(option)}
+                      disabled={isRevealed}
+                      className={`flex-1 px-4 py-3 rounded font-semibold transition-colors text-left ${isRevealed
+                          ? 'bg-green-600 text-white cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-500'
+                        } disabled:opacity-50`}
+                    >
+                      <span className="font-bold">{option}:</span> {isRevealed ? '✓ ' : ''}{optionText}
+                    </button>
+                    {/* Undo a single misclick without wiping the whole reveal order */}
+                    {isRevealed && (
+                      <button
+                        onClick={() => handleUnrevealOption(option)}
+                        title={`Hide option ${option} again`}
+                        className="px-3 py-3 bg-gray-600 text-white rounded font-semibold hover:bg-gray-500 transition-colors"
+                      >
+                        ↩ Hide
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>

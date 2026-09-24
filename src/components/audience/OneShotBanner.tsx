@@ -44,7 +44,7 @@ export default function OneShotBanner({ gameState }: OneShotBannerProps) {
         <span className="text-white text-5xl xl:text-7xl font-bold font-bebas">
           {name || 'Contestant'}
         </span>
-        <span className="text-white text-4xl xl:text-6xl font-bebas opacity-70 mx-3">
+        <span className="text-white text-2xl xl:text-4xl font-bebas opacity-70 mx-3">
           {verb}
         </span>
         <span

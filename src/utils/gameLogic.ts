@@ -683,6 +683,22 @@ export class GameLogic {
   }
 
   /**
+   * Hide a single option again, leaving the rest and their reveal order intact.
+   * For undoing a misclick without wiping the whole reveal sequence.
+   */
+  static unrevealOption(gameState: GameState, option: 'A' | 'B' | 'C' | 'D'): Partial<GameState> {
+    const currentRevealed = gameState.revealedOptions || [];
+    if (!currentRevealed.includes(option)) return {};
+
+    const updatedRevealedOptions = currentRevealed.filter(o => o !== option);
+    console.log(`Hiding option ${option} again. Revealed options:`, updatedRevealedOptions);
+
+    return {
+      revealedOptions: updatedRevealedOptions
+    };
+  }
+
+  /**
    * Reset all revealed options (hide all options again)
    */
   static resetRevealedOptions(gameState: GameState): Partial<GameState> {
