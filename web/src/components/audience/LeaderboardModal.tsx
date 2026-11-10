@@ -1,6 +1,10 @@
 'use client';
 
 import React from 'react';
+
+// The screen shows the top of the table; drawing a thousand rows on every
+// update would only slow the display down.
+const MAX_ROWS = 50;
 import type { GameState } from '@/lib/types';
 
 interface QuestionMeta {
@@ -197,7 +201,7 @@ export default function LeaderboardModal({ gameState }: LeaderboardModalProps) {
                 </tr>
               </thead>
               <tbody>
-                {userRows.map((user, i) => {
+                {userRows.slice(0, MAX_ROWS).map((user, i) => {
                   const totalCorrect = getCorrectCount(user);
                   return (
                     <tr key={user.uid} className={`border-t border-white/5 ${i % 2 === 0 ? 'bg-white/5' : ''}`}>
@@ -240,6 +244,9 @@ export default function LeaderboardModal({ gameState }: LeaderboardModalProps) {
                 )}
               </tbody>
             </table>
+            {userRows.length > MAX_ROWS && (
+              <p className="text-center text-white/40 text-lg py-4">+ {userRows.length - MAX_ROWS} more</p>
+            )}
           </div>
         ) : (
           // ── Per-question spotlight ──────────────────────────────────────────
@@ -286,7 +293,7 @@ export default function LeaderboardModal({ gameState }: LeaderboardModalProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {(singleQuestionRows ?? []).map((row, i) => {
+                    {(singleQuestionRows ?? []).slice(0, MAX_ROWS).map((row, i) => {
                       const isCorrect = effectiveSelectedMeta?.correctAnswer
                         ? row.answer === effectiveSelectedMeta.correctAnswer
                         : null;
@@ -325,6 +332,9 @@ export default function LeaderboardModal({ gameState }: LeaderboardModalProps) {
                     )}
                   </tbody>
                 </table>
+                {(singleQuestionRows?.length ?? 0) > MAX_ROWS && (
+                  <p className="text-center text-white/40 text-lg py-4">+ {(singleQuestionRows?.length ?? 0) - MAX_ROWS} more</p>
+                )}
               </div>
             )}
           </div>

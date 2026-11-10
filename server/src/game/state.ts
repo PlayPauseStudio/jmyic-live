@@ -255,3 +255,18 @@ export function normalizeGame(raw: Partial<GameState> | null | undefined): GameS
     lock: { ...d.lock, ...(raw?.lock ?? {}) },
   };
 }
+
+/**
+ * Play-along answer buckets (one per question number) are updated in place by
+ * recordAnswer, so object identity can't say whether one changed. Each write
+ * bumps this counter; the view caches in redact.ts compare it.
+ */
+const bucketRevisions = new WeakMap<object, number>();
+
+export function touchBucket(bucket: object): void {
+  bucketRevisions.set(bucket, (bucketRevisions.get(bucket) ?? 0) + 1);
+}
+
+export function bucketRevision(bucket: object): number {
+  return bucketRevisions.get(bucket) ?? 0;
+}

@@ -4,7 +4,8 @@ import { gameStateManager } from '@/lib/gameState';
 import { OP } from '@/lib/realtime';
 import { GameLogic } from '@/utils/gameLogic';
 import { PRIZE_TIERS } from '@/lib/constants';
-import { downloadGameData } from '@/utils/dataExport';
+// The Excel library is big; load it only when an export actually runs.
+const downloadGameData = async () => (await import('@/utils/dataExport')).downloadGameData();
 import QuestionEditor from './QuestionEditor';
 
 interface GameControlsProps {

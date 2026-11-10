@@ -22,8 +22,13 @@ interface ResponseRow {
   isCorrect: boolean | null;
 }
 
+// Rows drawn by default. A tablet redrawing a thousand rows every half second
+// gets sluggish; the counts and filters still cover every response.
+const ROW_LIMIT = 100;
+
 export default function PlayAlongPanel({ gameState, onError }: PlayAlongPanelProps) {
   const [filter, setFilter] = useState<Filter>('all');
+  const [showAll, setShowAll] = useState(false);
   // Auto-follow the live question for the leaderboard scope (operator can pin/unpin)
   const [followingLive, setFollowingLive] = useState(true);
   const prevQNumRef = useRef<number | null>(null);
@@ -237,7 +242,7 @@ export default function PlayAlongPanel({ gameState, onError }: PlayAlongPanelPro
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r, i) => (
+                  {(showAll ? filtered : filtered.slice(0, ROW_LIMIT)).map((r, i) => (
                     <tr key={r.uid} className="border-b border-gray-700/50">
                       <td className="py-1.5 pr-3 text-gray-500">{i + 1}</td>
                       <td className="py-1.5 pr-3 text-white">{r.name}</td>
@@ -264,6 +269,14 @@ export default function PlayAlongPanel({ gameState, onError }: PlayAlongPanelPro
                   ))}
                 </tbody>
               </table>
+              {filtered.length > ROW_LIMIT && (
+                <button
+                  onClick={() => setShowAll((v) => !v)}
+                  className="mt-2 w-full py-1.5 rounded bg-gray-700 text-gray-300 text-xs hover:bg-gray-600"
+                >
+                  {showAll ? `Show first ${ROW_LIMIT}` : `Show all ${filtered.length}`}
+                </button>
+              )}
             </div>
           )}
         </>

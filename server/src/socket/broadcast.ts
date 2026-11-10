@@ -1,13 +1,13 @@
 import type { RoomStore } from '../game/store';
-import { audienceSharedView, audienceView, displayView, operatorView, participantCount, type View } from '../game/redact';
+import { audienceView, audienceSharedView, displayView, operatorView, ownPlayAlong, participantCount, type View } from '../game/redact';
 import { SRV } from '../protocol/events';
 import { type AppServer, type AppSocket, ROOM_OPERATOR, ROOM_DISPLAY, ROOM_AUDIENCE } from './types';
 
 /** How often new play-along answers go out to the operator panel and leaderboard. */
-const ANSWER_FLUSH_MS = 400;
+const ANSWER_FLUSH_MS = 500;
 
-/** The last thing each room was sent, per key, as JSON — what patches diff against. */
-type Sent = Map<string, string>;
+/** The last thing each room was sent, per key — what patches diff against. */
+type Sent = Map<string, { ref: unknown; json: string }>;
 
 /**
  * Owns all server→client emission and role-based redaction.
@@ -70,7 +70,7 @@ export class Broadcaster {
   /** A phone's own profile/answers changed: send that phone (only) its record. */
   sendOwnTo(socket: AppSocket): void {
     const s = this.store.getState();
-    socket.emit(SRV.STATE_PATCH, { version: this.store.version, changed: { you: audienceView(s, socket.data.uid).you } });
+    socket.emit(SRV.STATE_PATCH, { version: this.store.version, changed: { you: ownPlayAlong(s, socket.data.uid) } });
   }
 
   /** Play-along answers changed; the next flush sends the summaries. */
@@ -104,18 +104,29 @@ export class Broadcaster {
   private remember(room: keyof Broadcaster['sent'], view: View): void {
     const sent = this.sent[room];
     sent.clear();
-    for (const [k, v] of Object.entries(view)) sent.set(k, JSON.stringify(v ?? null));
+    for (const [k, v] of Object.entries(view)) sent.set(k, { ref: v, json: JSON.stringify(v ?? null) });
   }
 
-  /** Keys whose value differs from what the room last got; records the new values. */
+  /**
+   * Keys whose value differs from what the room last got; records the new
+   * values. State is never mutated, so a value that is the very same object as
+   * last time is unchanged and skips the JSON comparison. A key that vanished
+   * from the view goes out as null.
+   */
   private diff(room: keyof Broadcaster['sent'], view: View): View {
     const sent = this.sent[room];
     const changed: View = {};
     for (const [k, v] of Object.entries(view)) {
+      const last = sent.get(k);
+      if (last && last.ref === v) continue;
       const json = JSON.stringify(v ?? null);
-      if (sent.get(k) !== json) {
-        sent.set(k, json);
-        changed[k] = v ?? null;
+      if (last?.json !== json) changed[k] = v ?? null;
+      sent.set(k, { ref: v, json });
+    }
+    for (const k of sent.keys()) {
+      if (!(k in view)) {
+        changed[k] = null;
+        sent.delete(k);
       }
     }
     return changed;

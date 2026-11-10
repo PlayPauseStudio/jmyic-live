@@ -177,8 +177,9 @@ async function main(): Promise<void> {
   await sleep(600);
   check('phone 1 sees its own answer', phone1.view.you?.answers?.['1']?.answer === 'A');
   check('phone 2 never received phone 1 details', !phone2.wire.some((m) => m.includes('9876543210') || m.includes('Asha')));
-  const rows = op.view.responses as { name: string; answer: string }[];
-  check('operator sees live responses', rows.length === 2 && rows.some((r) => r.name === 'Asha' && r.answer === 'A'));
+  // Compact rows: [uid, name, answer, timestamp, responseTimeMs]
+  const rows = op.view.responses as [string, string, string, number, number][];
+  check('operator sees live responses', rows.length === 2 && rows.some((r) => r[1] === 'Asha' && r[2] === 'A'));
   check('operator responses carry no phone numbers', !JSON.stringify(op.view.responses).includes('9876543210'));
   check('participant count', op.view.participantCount === 2 && disp.view.participantCount === 2);
 
@@ -213,12 +214,13 @@ async function main(): Promise<void> {
   await op.send('op:setFlags', { showLeaderboard: true, leaderboardScope: 'all' });
   await sleep(100);
   const lb = disp.view.leaderboard;
-  check('display gets leaderboard while shown', !!lb && lb.answers?.['1'] && Object.keys(lb.answers['1']).length === 2);
-  check('leaderboard carries names, not phones', JSON.stringify(lb).includes('Asha') && !JSON.stringify(lb).includes('9876543210'));
+  const lbQ1 = disp.view['lb:1'];
+  check('display gets leaderboard while shown', !!lb && !!lbQ1 && Object.keys(lbQ1).length === 2);
+  check('leaderboard carries names, not phones', JSON.stringify(lbQ1).includes('Asha') && !JSON.stringify(disp.view).includes('9876543210'));
   check('Q1 graded A', lb.meta?.['1']?.correctAnswer === 'A');
   await op.send('op:setFlags', { showLeaderboard: false });
   await sleep(100);
-  check('leaderboard data dropped when hidden', disp.view.leaderboard === null);
+  check('leaderboard data dropped when hidden', disp.view.leaderboard === null && disp.view['lb:1'] === null);
 
   check('reset question', (await op.send('op:resetQuestion')).ok);
   await sleep(100);

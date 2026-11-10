@@ -7,6 +7,7 @@ import {
   type Player,
   type Question,
   type ServerState,
+  touchBucket,
 } from './state';
 
 /**
@@ -354,12 +355,31 @@ export function resetEverything(s: ServerState): ServerState {
 // ── Play-along (phones) ──────────────────────────────────────────────────────
 
 /** Register a phone's name + mobile. Errors: duplicate_phone. */
+// phone -> uid for each players object, so the duplicate-number check doesn't
+// scan every registered player on each sign-up.
+const phoneIndexes = new WeakMap<ServerState['players'], Map<string, string>>();
+
+function phoneIndex(players: ServerState['players']): Map<string, string> {
+  let idx = phoneIndexes.get(players);
+  if (!idx) {
+    idx = new Map(Object.values(players).map((p) => [p.phone, p.uid]));
+    phoneIndexes.set(players, idx);
+  }
+  return idx;
+}
+
 export function registerPlayer(s: ServerState, uid: string, name: string, phone: string): ServerState {
-  const clash = Object.values(s.players).find((p) => p.phone === phone && p.uid !== uid);
-  if (clash) fail('duplicate_phone');
+  const idx = phoneIndex(s.players);
+  const owner = idx.get(phone);
+  if (owner && owner !== uid) fail('duplicate_phone');
   const existing = s.players[uid];
   const player: Player = { uid, name, phone, createdAt: existing?.createdAt ?? Date.now() };
-  return { ...s, players: { ...s.players, [uid]: player } };
+  // Updated in place, like play-along answers: copying every player on each
+  // sign-up made a crowd joining at once cost grow with the square of its size.
+  if (existing && existing.phone !== phone && idx.get(existing.phone) === uid) idx.delete(existing.phone);
+  s.players[uid] = player;
+  idx.set(phone, uid);
+  return { ...s };
 }
 
 /**
@@ -378,22 +398,20 @@ export function recordAnswer(s: ServerState, uid: string, answer: Option): Serve
   const now = Date.now();
   const start = gs.currentQuestionStartTime ?? 0;
   const qKey = String(gs.currentQuestionNumber);
-  return {
-    ...s,
-    answers: {
-      ...s.answers,
-      [qKey]: {
-        ...(s.answers[qKey] ?? {}),
-        [uid]: {
-          answer,
-          timestamp: now,
-          responseTimeMs: start > 0 ? now - start : 0,
-          name: player.name,
-          phone: player.phone,
-          questionNumber: gs.currentQuestionNumber,
-          questionId: question.id,
-        },
-      },
-    },
+  // The one place state is changed in place. Copying the whole bucket on every
+  // tap made a burst cost grow with the square of the crowd (1000 phones = 1M
+  // copied entries). touchBucket tells the view caches this bucket changed.
+  const existing = s.answers[qKey];
+  const bucket = existing ?? {};
+  bucket[uid] = {
+    answer,
+    timestamp: now,
+    responseTimeMs: start > 0 ? now - start : 0,
+    name: player.name,
+    phone: player.phone,
+    questionNumber: gs.currentQuestionNumber,
+    questionId: question.id,
   };
+  touchBucket(bucket);
+  return { ...s, answers: existing ? s.answers : { ...s.answers, [qKey]: bucket } };
 }

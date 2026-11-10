@@ -1,4 +1,4 @@
-import { OPTIONS, type GameState, type Option, type Question, type QuestionMeta, type ServerState } from './state';
+import { OPTIONS, bucketRevision, type GameState, type Option, type Question, type QuestionMeta, type ServerState } from './state';
 
 /**
  * Role-based views. The old app handed every screen the whole game straight
@@ -15,18 +15,19 @@ import { OPTIONS, type GameState, type Option, type Question, type QuestionMeta,
  * Phone numbers leave the server only in the operator's export.
  */
 
-/** One response row on the operator's Play Along panel. */
-export interface ResponseRow {
-  uid: string;
-  name: string;
-  answer: Option;
-  timestamp: number;
-  responseTimeMs: number;
-}
+/**
+ * Play-along answers travel as compact rows, not objects: with a thousand
+ * phones that roughly halves what goes over the wire. The web app expands them
+ * back (web/src/lib/gameState.ts).
+ *
+ *   operator response row: [uid, name, answer, timestamp, responseTimeMs]
+ *   leaderboard bucket:    { uid: [name, answer, timestamp, responseTimeMs] }
+ */
+export type ResponseTuple = [uid: string, name: string, answer: Option, timestamp: number, responseTimeMs: number];
+export type LeaderboardTuple = [name: string, answer: Option, timestamp: number, responseTimeMs: number];
 
-/** Answers as the big-screen leaderboard needs them: names, not phones. */
-export interface LeaderboardData {
-  answers: Record<string, Record<string, Omit<ResponseRow, 'uid'>>>;
+/** The leaderboard's grading; its answers go out per question as `lb:<n>` keys. */
+export interface LeaderboardBase {
   meta: Record<string, QuestionMeta>;
 }
 
@@ -84,28 +85,43 @@ export function participantCount(s: ServerState): number {
   return Object.keys(s.players).length;
 }
 
+type AnswerBucket = ServerState['answers'][string];
+
+// A bucket's compact form is reused until the bucket's revision moves, so a
+// broadcast rebuilds only the question being answered, and an unchanged
+// question keeps the same object (which the broadcaster then skips).
+interface Cached<T> {
+  rev: number;
+  value: T;
+}
+const responseCache = new WeakMap<AnswerBucket, Cached<ResponseTuple[]>>();
+const leaderboardCache = new WeakMap<AnswerBucket, Cached<Record<string, LeaderboardTuple>>>();
+
+function cached<T>(cache: WeakMap<AnswerBucket, Cached<T>>, rows: AnswerBucket, build: () => T): T {
+  const rev = bucketRevision(rows);
+  const hit = cache.get(rows);
+  if (hit && hit.rev === rev) return hit.value;
+  const value = build();
+  cache.set(rows, { rev, value });
+  return value;
+}
+const EMPTY_RESPONSES: ResponseTuple[] = [];
+
 /** Responses for the question number on screen, for the operator's live table. */
-export function currentResponses(s: ServerState): ResponseRow[] {
-  const rows = s.answers[String(s.game.currentQuestionNumber)] ?? {};
-  return Object.entries(rows).map(([uid, r]) => ({
-    uid,
-    name: r.name,
-    answer: r.answer,
-    timestamp: r.timestamp,
-    responseTimeMs: r.responseTimeMs,
-  }));
+export function currentResponses(s: ServerState): ResponseTuple[] {
+  const rows = s.answers[String(s.game.currentQuestionNumber)];
+  if (!rows) return EMPTY_RESPONSES;
+  return cached(responseCache, rows, () =>
+    Object.entries(rows).map(([uid, r]): ResponseTuple => [uid, r.name, r.answer, r.timestamp, r.responseTimeMs]),
+  );
 }
 
-export function leaderboardData(s: ServerState): LeaderboardData | null {
-  if (!s.game.showLeaderboard) return null;
-  const answers: LeaderboardData['answers'] = {};
-  for (const [qNum, rows] of Object.entries(s.answers)) {
-    answers[qNum] = {};
-    for (const [uid, r] of Object.entries(rows)) {
-      answers[qNum][uid] = { name: r.name, answer: r.answer, timestamp: r.timestamp, responseTimeMs: r.responseTimeMs };
-    }
-  }
-  return { answers, meta: publicMeta(s) };
+function leaderboardBucket(rows: AnswerBucket): Record<string, LeaderboardTuple> {
+  return cached(leaderboardCache, rows, () => {
+    const out: Record<string, LeaderboardTuple> = {};
+    for (const [uid, r] of Object.entries(rows)) out[uid] = [r.name, r.answer, r.timestamp, r.responseTimeMs];
+    return out;
+  });
 }
 
 /** Everything a view is made of, flattened: the game's keys plus role extras. */
@@ -121,11 +137,17 @@ export function operatorView(s: ServerState): View {
 }
 
 export function displayView(s: ServerState): View {
-  return {
+  const view: View = {
     ...publicGame(s.game),
     participantCount: participantCount(s),
-    leaderboard: leaderboardData(s),
+    leaderboard: s.game.showLeaderboard ? ({ meta: publicMeta(s) } satisfies LeaderboardBase) : null,
   };
+  // One key per question, so a burst of answers re-sends only the question
+  // being answered, not every earlier question too.
+  if (s.game.showLeaderboard) {
+    for (const [qNum, rows] of Object.entries(s.answers)) view[`lb:${qNum}`] = leaderboardBucket(rows);
+  }
+  return view;
 }
 
 /** The game keys a phone renders. Everything else stays off the phones. */

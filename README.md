@@ -179,11 +179,26 @@ cd server && npm run smoke   # 100 checks: login, role guards, hidden answers, b
 It needs the server running in another terminal and **resets everything** on
 it. It talks to `127.0.0.1:8080`; point it elsewhere with `SMOKE_URL`.
 
+Load test — 1000 phones (change with `PHONES=`) register and all answer the
+same question in the same instant, with the operator panel and leaderboard open:
+
+```bash
+cd server && npm run load    # local server only (no FIREBASE_PROJECT_ID); also resets it
+```
+
+Last run (laptop): 1000 phones all confirmed within ~0.2 s, 2000 within ~0.3 s,
+longest server stall ~30 ms. On a live server, `/healthz` reports
+`eventLoopDelay` (longest stall since the previous check) and `memoryMb`.
+
+Test CSVs and a manual checklist for the whole show are in `test-data/`.
+
 ### How updates travel
 
 Each screen gets one full state when it connects, then only the fields that
 changed. Play-along answers don't broadcast one by one: the operator's
-response table and the big-screen leaderboard refresh a few times a second.
+response table and the big-screen leaderboard refresh twice a second, as
+compact rows, and the leaderboard re-sends only the question being answered.
+Recording an answer or a sign-up costs the same however big the crowd is.
 See `server/src/socket/broadcast.ts` and `server/src/game/redact.ts`.
 
 ---

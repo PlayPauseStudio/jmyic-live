@@ -1,0 +1,4 @@
+question,option_a,option_b,option_c,option_d,guest_answer
+"This row has NO answer - checking the panel guess should show an error, not crash","Red","Blue","Green","Yellow",""
+"This row has an EMPTY option D","Red","Blue","Green","","A"
+"Normal row after the broken ones","Red","Blue","Green","Yellow","B"
