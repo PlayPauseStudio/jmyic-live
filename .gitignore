@@ -1,48 +1,48 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+node_modules/
+.pnp
+.pnp.js
 
-# testing
-/coverage
+# builds
+.next/
+out/
+dist/
+build/
 
-# next.js
-/.next/
-/out/
+# secrets — NEVER commit these.
+# server/.env holds JWT_SECRET, the operator password and the Firebase service
+# account; web/.env* holds build-time config. Only the .env.example files,
+# which contain placeholders, are tracked.
+.env
+.env.*
+!.env.example
+*serviceAccount*.json
+*service-account*.json
+*-firebase-adminsdk-*.json
 
-# production
-/build
+# firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
 
 # misc
 .DS_Store
 *.pem
-
-# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
-
-
-
-# vercel
 .vercel
-
-# typescript
 *.tsbuildinfo
 next-env.d.ts
-.firebase/hosting.b3V0.cache
 
-# cache
-.firebase/hosting.b3V0.cache
-# firebase
-firebase-debug.log*
-firebase-debug.*.log
-.firebase/
+# Firebase Auth exports and the report built from them. Real people's email
+# addresses — keep them out of git, where they are effectively permanent.
+users.json
+users-report.csv
+
+# web/.env.local and web/.env.production only hold the public Firebase web
+# config and the server URL, so they ARE committed (Railway builds from them).
+!web/.env.local
+!web/.env.production
+!web/.env.staging

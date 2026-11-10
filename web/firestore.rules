@@ -1,0 +1,18 @@
+rules_version = '2';
+
+// The app no longer uses Firestore or the Realtime Database: game state, the
+// question pool and play-along answers all live on jmyic-server (see the
+// README). Firebase is used only for /play sign-in, which these rules don't
+// affect. Everything is closed so the old world-readable data — including
+// play-along phone numbers — can't be read or written by anyone.
+//
+// Deploy ONLY after the server version is live, or the old static site
+// (which still talks to Firebase directly) stops working:
+//   firebase deploy --only database,firestore
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,5 +1,13 @@
 # Judge Me If You Can — Codebase Context
 
+> **Architecture changed (2026-11): this file predates the game server.** The
+> game rules and UI described below still apply, but nothing reads or writes
+> Firebase any more: state lives on `server/` (Express + Socket.IO), the pages
+> in `web/` send intents over a socket, and Firebase is used only for `/play`
+> sign-in. Where this file mentions RTDB paths, Firestore collections,
+> `gameStateManager.updateGameState` or the client-side password hash, read
+> the README instead.
+
 > This file exists so any AI session (or human) can regain full project context without re-exploring the code. Keep it up to date when major features change.
 
 ---

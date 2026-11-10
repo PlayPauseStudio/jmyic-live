@@ -1,23 +1,50 @@
-# Judge Me If You Can (JMYIC)
+# Judge Me If You Can (JMYIC) — live (server-backed) edition
 
-A live, in-person comedy game show application built with Next.js.
+A live, in-person comedy game show app. A Node server owns the game; the web
+app only sends intent ("check the panel's guess") and renders what comes back.
+Same architecture as `bachelor-gameshow-live`.
 
-**Hosting:** Railway (static export, no backend server).
-**Data & auth:** Firebase — Realtime Database for game state, Firestore for the question pool
-and play-along records, and Firebase Auth (Google) for player sign-in.
+```
+jmyic-live/
+  server/   Express + Socket.IO — the authority for game state
+  web/      Next.js static export on Firebase Hosting (jmyic-live.web.app) — /operator, /audience, /play
+```
 
-> There is no game server yet. Every client talks to Firebase directly via the client SDK,
-> exactly as it did on Firebase Hosting. Railway only serves the built static files.
+The game rules are the same ones the app always had. They moved from the
+browser (`web/src/utils/gameLogic.ts`) to the server (`server/src/game/logic.ts`)
+unchanged; only who is allowed to run them changed.
 
 ## Roles & URLs
 
-| Role | Path | Device |
-|------|------|--------|
-| Home / Role Selector | `/` | Any |
-| Operator Panel | `/operator` | Tablet (backstage) |
-| Audience Display | `/audience` | Large screen / TV |
-| Play Along | `/play` | Audience members' phones |
-| Leaderboard | `/leaderboard` | Host / brand segment screen |
+| Role | Path | Device | Connects as |
+|------|------|--------|-------------|
+| Home / Role Selector | `/` | Any | — |
+| Operator Panel | `/operator` | Tablet (backstage) | operator (password → server-issued token) |
+| Audience Display | `/audience` | Large screen / TV | display (open, or `?key=` if `DISPLAY_KEY` is set) |
+| Play Along | `/play` | Audience members' phones | audience (Firebase sign-in, verified by the server) |
+
+The leaderboard is a full-screen view on `/audience`, switched on from the
+operator panel's Play Along section.
+
+---
+
+## Why the server
+
+The previous version had no backend: every screen read and wrote Firebase
+directly, and the database rules were open (`read, write: true`).
+
+| | before | now |
+|---|---|---|
+| Operator password | SHA-256 hash shipped in the page, compared in the browser | sent to the server, bcrypt-checked, exchanged for a 12h token; login attempts rate-limited |
+| Who can change the game | anyone with the Firebase project id | only a socket that presented a valid operator token |
+| Guest's answer | readable by every screen (and anyone) the moment a question was picked; the `/api/questions` file in the build even shipped the whole pool | stays on the server until it is revealed; display and phones get it blanked, unrevealed options too |
+| Play-along phone numbers | world-readable in Firestore / RTDB | never leave the server except in the operator's Excel export |
+| Play-along answers | phone wrote its own answer and timestamp | phone sends A/B/C/D; the server checks the answer window and option, and stamps the time itself (no faking "fastest finger") |
+| One phone number per player | checked in the phone's browser | checked on the server |
+| A phone acting as another player | possible (client chose the uid) | impossible — uid comes from the verified Firebase token |
+
+Firebase is now used **only** for `/play` sign-in (Google / email). The app
+no longer reads or writes Firestore or the Realtime Database.
 
 ---
 
@@ -66,118 +93,6 @@ Results are recorded per contestant and land in the Excel export on a
 
 ---
 
-## Local Development
-
-```bash
-# Install dependencies
-npm install
-
-# Run dev server (with Turbopack)
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-For staging environment:
-```bash
-npm run dev:staging
-```
-
----
-
-## Deploying to Railway
-
-Railway builds from this repo and serves the static export with [`serve`](https://www.npmjs.com/package/serve).
-There is no backend process — `npm start` is just a static file server bound to Railway's `$PORT`.
-
-### One-time setup
-
-1. **Create the service.** Railway dashboard → *New Project* → *Deploy from GitHub repo* →
-   pick `PlayPauseStudio/jmyic-live`.
-2. **Confirm the commands.** `railway.json` already pins them, so Railway should show:
-   - Build: `npm run build`
-   - Start: `npm start`
-3. **Generate a domain.** Service → *Settings* → *Networking* → *Generate Domain*.
-4. **Authorize that domain in Firebase** (required, or Google sign-in will fail — see below).
-
-After that, every push to `main` redeploys automatically.
-
-### Authorizing the Railway domain in Firebase
-
-Google sign-in is rejected from any origin Firebase does not know about. This step is
-mandatory for `/play` to work, and it is easy to forget when the domain changes.
-
-1. [Firebase Console](https://console.firebase.google.com) → project `jmyic-live`
-2. **Authentication → Settings → Authorized domains → Add domain**
-3. Add the Railway domain (e.g. `jmyic-live-production.up.railway.app`), and any custom
-   domain you later attach to the service.
-
-`NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` is `jmyic-live.firebaseapp.com` — the sign-in popup is
-served by Firebase, so it does not change when hosting moves.
-
-### Environment variables on Railway
-
-`.env.production` is committed, so a default build already has the correct Firebase config
-baked in and **Railway needs no variables set to work**.
-
-`NEXT_PUBLIC_*` values are inlined at *build* time, not read at runtime. To override any of
-them, set the variable in Railway → *Variables*; real environment variables take precedence
-over the committed `.env` files. Changing one requires a rebuild, not just a restart.
-
-One worth setting explicitly, because `.env.local` is committed and would otherwise win:
-
-```
-NEXT_PUBLIC_ENVIRONMENT=production
-```
-
-### Running the production build locally
-
-```bash
-npm run preview          # builds, then serves out/ on http://localhost:3000
-PORT=4000 npm start      # serve an existing build on another port
-```
-
----
-
-## Firebase Hosting (legacy / fallback)
-
-Hosting has moved to Railway, but the Firebase config is still present so you can fall back
-to it, and so you can push database rules.
-
-```bash
-npm run deploy:firebase          # build + deploy hosting to jmyic-live
-firebase deploy --only database,firestore  # push database.rules.json + firestore.rules
-```
-
-> **Important:** Do NOT run plain `firebase deploy` — it will try to deploy Cloud Functions and
-> fail because `functions/lib/index.js` hasn't been compiled. Use `--only`.
-
-The `functions/` directory is unused by the app (health check + a stub). Deploy it with
-`npm run deploy:functions` only if you actually change it.
-
----
-
-## Environment Files
-
-| File | Used by |
-|------|---------|
-| `.env.local` | `npm run dev` |
-| `.env.staging` | `npm run build:staging` — same project as prod, see note in the file |
-| `.env.production` | `npm run build:production`, and `npm run build` on Railway |
-
-Required variables (all `NEXT_PUBLIC_`):
-```
-NEXT_PUBLIC_FIREBASE_API_KEY
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-NEXT_PUBLIC_FIREBASE_PROJECT_ID
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-NEXT_PUBLIC_FIREBASE_APP_ID
-NEXT_PUBLIC_ENVIRONMENT    # "local" | "staging" | "production"
-```
-
----
-
 ## Revealing Options
 
 Options are revealed one at a time in any order, and each revealed option gets an
@@ -194,15 +109,14 @@ round on screen: revealed options, the panel guess, the check and the reveal all
 go, *and* so does anything that round scored — a life spent, a ladder step taken,
 or a One Shot contestant's win/lose result. Earlier questions are untouched.
 
-It works by snapshotting the game state when a question is selected and restoring
-it. The snapshot lives in `games/game1_roundStart`, a **sibling** of the game state
-node rather than a child, so audience screens don't re-download it on every change.
+It works by the server snapshotting the game state when a question is selected and
+restoring it. The snapshot is server-only and never sent to any screen.
 
 The question stays marked used, so it doesn't jump back into the available pool.
 It asks for confirmation only once the round has actually scored something —
 clearing a few revealed options isn't worth a dialog mid-show.
 
-If no snapshot exists (a game already running from before this existed), it falls
+If no snapshot exists (e.g. the server restarted without Redis), it falls
 back to clearing everything visible. That fallback cannot restore a spent life,
 because the earlier value isn't recoverable from current state.
 
@@ -219,9 +133,9 @@ Two places, same editor:
   afterwards.
 
 Both mount the same `QuestionEditor`, so they cannot drift apart. Saving always
-writes the stored pool; if the row being edited is the one currently on the
-audience screen, the live game state is updated too and the display changes
-immediately.
+updates the pool on the server; if the row being edited is the one currently on
+the audience screen, the live game state (and the Reset Question snapshot) is
+updated too and the display changes immediately.
 
 **Correcting the answer on a round that already played:**
 
@@ -235,44 +149,131 @@ immediately.
 
 ---
 
-## Operator Panel Password Setup (one-time)
-
-The operator panel is protected by a SHA-256 hashed password. The password itself is never stored anywhere — only its hash is embedded in the build.
-
-### Step 1: Generate the hash
-
-Replace `YOUR_PASSWORD_HERE` with the password you want operators to use:
+## Running it locally
 
 ```bash
-node -e "const c=require('crypto'); console.log(c.createHash('sha256').update('YOUR_PASSWORD_HERE').digest('hex'));"
+# 1. server
+cd server
+cp .env.example .env         # OPERATOR_PASSWORD=letmein by default
+npm install
+npm run dev                  # http://localhost:8080
+
+# 2. web (separate terminal)
+cd web
+npm install
+npm run dev                  # http://localhost:3000
 ```
 
-### Step 2: Add the hash to every env file
+Open `/operator` (password from `server/.env`), `/audience` and `/play`.
 
-Paste the output into `.env.local`, `.env.staging`, and `.env.production`:
+Locally, with `FIREBASE_PROJECT_ID` unset, the server accepts any phone token
+as its uid, so you can test play-along without Firebase. `/play` itself still
+signs in with the real `jmyic-live` Firebase project.
+
+Verify the server on its own:
+
+```bash
+cd server && npm run smoke   # 100 checks: login, role guards, hidden answers, both formats, play-along, export, resets
+```
+
+It needs the server running in another terminal and **resets everything** on
+it. It talks to `127.0.0.1:8080`; point it elsewhere with `SMOKE_URL`.
+
+### How updates travel
+
+Each screen gets one full state when it connects, then only the fields that
+changed. Play-along answers don't broadcast one by one: the operator's
+response table and the big-screen leaderboard refresh a few times a second.
+See `server/src/socket/broadcast.ts` and `server/src/game/redact.ts`.
+
+---
+
+## Deploying
+
+- **Server → Railway** (one service, `server/`)
+- **Website → Firebase Hosting** at **https://jmyic-live.web.app** (`web/`)
+
+The website is plain static files; Railway only runs the game server.
+
+### 1. Server on Railway
+
+Railway → *New* → *GitHub repo* → `PlayPauseStudio/jmyic-live`, then
+*Settings*: **Root Directory `server`**. `server/railway.json` sets the build,
+start and health check. Generate a domain, then set these variables:
+
+| variable | value |
+|---|---|
+| `NODE_ENV` | `production` |
+| `JWT_SECRET` | a long random string (32+ characters) |
+| `OPERATOR_PASSWORD_HASH` | output of `npm run hash -- 'the password'` (leave `OPERATOR_PASSWORD` unset) |
+| `REDIS_URL` | recommended; without it a server restart mid-show loses the game and play-along answers |
+| `DISPLAY_KEY` | optional — then open the big screen as `/audience?key=…` |
+| `ALLOWED_ORIGINS` | optional — defaults to `https://jmyic-live.web.app,https://jmyic-live.firebaseapp.com` in production |
+| `FIREBASE_PROJECT_ID` | optional — defaults to `jmyic-live` in production |
+
+The server refuses to start in production without a proper `JWT_SECRET` and
+`OPERATOR_PASSWORD_HASH`.
+
+If the old Railway service that served the website still exists, delete it:
+the website no longer runs on Railway.
+
+### 2. Website on Firebase Hosting
+
+Put the server's Railway domain in `web/.env.production` (no trailing slash):
 
 ```
-NEXT_PUBLIC_OPERATOR_PASSWORD_HASH=<hash from step 1>
+NEXT_PUBLIC_WS_URL=https://<the server's railway domain>
 ```
 
-### How it works
+It is baked into the files at build time, so the build refuses to run without
+it, and changing it means deploying the website again. Then:
 
-- The hash is bundled into the static JS (since it's `NEXT_PUBLIC_`) but SHA-256 is one-way — an attacker cannot reverse it to get the password.
-- Correct password → session stored in `sessionStorage` (tab-scoped, clears when tab closes).
-- 5 wrong attempts → 30-second lockout.
+```bash
+cd web
+npx firebase login          # once per machine
+npm run deploy              # builds and uploads to https://jmyic-live.web.app
+```
+
+`jmyic-live.web.app` is already an authorized sign-in domain for the
+`jmyic-live` project, so Google sign-in on `/play` works there with no extra
+setup.
+
+### 3. After the switch-over: close the Firebase databases
+
+`web/database.rules.json` and `web/firestore.rules` now deny everything — the
+old game state and play-along data (with phone numbers) are still sitting in
+the `jmyic-live` Firebase project, readable by anyone. Once the server version
+is live, push the rules:
+
+```bash
+cd web && npm run deploy:rules
+```
+
+**Not before**: a site still running the old build reads and writes those
+databases directly and would stop working.
+
+---
+
+## Operator password
+
+Set on the server only:
+
+```bash
+cd server && npm run hash -- 'the password'   # paste into OPERATOR_PASSWORD_HASH on Railway
+```
+
+The browser never sees the password or its hash. A correct password gets a
+12-hour token, kept in `sessionStorage` (survives a refresh, cleared when the
+tab closes). After 12 hours the panel asks for the password again.
 
 ---
 
 ## Firebase Console Setup (one-time)
 
-For the **Play Along** feature to work, enable authentication providers in the Firebase Console:
+For `/play` sign-in, project `jmyic-live`:
 
-1. Go to [Firebase Console](https://console.firebase.google.com) → project `jmyic-live`
-2. Authentication → Sign-in method
-3. Enable **Google** and **Email/Password**
-4. Authentication → Settings → **Authorized domains** → add the Railway domain
-   (see [Deploying to Railway](#authorizing-the-railway-domain-in-firebase)). Without this,
-   the Google sign-in popup closes with an `auth/unauthorized-domain` error.
+1. Authentication → Sign-in method → enable **Google** and **Email/Password**
+2. Authentication → Settings → **Authorized domains** → `jmyic-live.web.app` is there by default; add any other domain the site is served from
 
 ---
 
@@ -280,29 +281,26 @@ For the **Play Along** feature to work, enable authentication providers in the F
 
 ```
 jmyic-live/
-├── railway.json              # Railway build + start commands
-├── serve.json                # Static server config (cache headers)
-├── src/app/
-│   ├── page.tsx              # Home — role selector
-│   ├── operator/page.tsx     # Operator control panel
-│   ├── audience/page.tsx     # Large-screen audience display
-│   ├── play/page.tsx         # Play Along (audience phones)
-│   └── leaderboard/page.tsx  # Leaderboard (brand segments)
-├── src/components/
-│   ├── operator/             # Operator UI components
-│   ├── audience/             # Audience display components
-│   └── playAlong/            # Play Along auth + answer UI
-├── src/lib/
-│   ├── firebase.ts           # Firestore init, defaults, prize tiers
-│   ├── firebaseAuth.ts       # Firebase Auth (client-only, lazy-init)
-│   ├── gameState.ts          # GameStateManager — Realtime Database sync
-│   ├── types.ts              # TypeScript interfaces
-│   └── sounds.ts             # SoundPlayer
-├── src/utils/
-│   └── gameLogic.ts          # All game logic (static methods)
-├── functions/                # Unused by the app — legacy Cloud Functions
-│   └── src/index.ts          # health check + stub
-└── public/sounds/            # Audio assets
+├── server/
+│   ├── railway.json
+│   ├── scripts/smoke.ts          # end-to-end test against a running server
+│   └── src/
+│       ├── game/logic.ts         # the game rules (moved from the browser, unchanged)
+│       ├── game/reducers.ts      # operator + phone actions, with their preconditions
+│       ├── game/redact.ts        # what each screen is allowed to see
+│       ├── game/state.ts         # GameState, defaults, prize tiers
+│       ├── socket/               # handshake auth, handlers, broadcaster
+│       ├── auth/                 # operator JWT, Firebase token check
+│       └── persistence/          # optional Redis snapshots
+└── web/
+    ├── firebase.json             # hosting for jmyic-live.web.app + deny-all rules
+    └── src/
+        ├── app/operator|audience|play/
+        ├── components/           # operator / audience / playAlong UI
+        ├── lib/realtime.ts       # socket client + event names (mirror the server's)
+        ├── lib/gameState.ts      # connect, subscribe, send intents
+        ├── lib/firebase*.ts      # sign-in only
+        └── utils/gameLogic.ts    # read-only helpers for rendering
 ```
 
 ---
@@ -311,22 +309,11 @@ jmyic-live/
 
 | Task | Command |
 |------|---------|
-| Start dev server | `npm run dev` |
-| Build for production | `npm run build` |
-| **Preview the Railway build locally** | `npm run preview` |
-| **Deploy to Railway** | `git push origin main` (auto-deploys) |
-| Deploy to Firebase Hosting (fallback) | `npm run deploy:firebase` |
-| Push security rules | `firebase deploy --only database,firestore` |
-| Deploy functions (rare) | `npm run deploy:functions` |
-| View Firebase logs | `npm run logs:functions` |
-
----
-
-## Deployment Files
-
-| File | Purpose |
-|------|---------|
-| `railway.json` | Pins Railway's build and start commands |
-| `serve.json` | Static server config — cache headers for assets vs. HTML |
-| `.nvmrc` | Node version for the Railway build (22) |
-| `next.config.ts` | `output: 'export'` — builds to `out/` |
+| Start server | `cd server && npm run dev` |
+| Start web | `cd web && npm run dev` |
+| Server smoke test | `cd server && npm run smoke` |
+| Hash the operator password | `cd server && npm run hash -- 'pw'` |
+| Build web | `cd web && npm run build` |
+| Close the Firebase databases | `cd web && npm run deploy:rules` |
+| Deploy server | `git push origin main` (Railway redeploys; resets the game unless `REDIS_URL` is set) |
+| Deploy website | `cd web && npm run deploy` (→ https://jmyic-live.web.app) |

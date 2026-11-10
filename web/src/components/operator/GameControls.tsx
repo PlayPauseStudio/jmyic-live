@@ -1,0 +1,779 @@
+import React, { useState, useEffect } from 'react';
+import type { GameState } from '@/lib/types';
+import { gameStateManager } from '@/lib/gameState';
+import { OP } from '@/lib/realtime';
+import { GameLogic } from '@/utils/gameLogic';
+import { PRIZE_TIERS } from '@/lib/constants';
+import { downloadGameData } from '@/utils/dataExport';
+import QuestionEditor from './QuestionEditor';
+
+interface GameControlsProps {
+  gameState: GameState;
+  onError: (error: string) => void;
+}
+
+type Option = 'A' | 'B' | 'C' | 'D';
+
+/**
+ * Every button here sends an intent to the server, which applies the game
+ * rules (server/src/game/logic.ts) and broadcasts the result. The same
+ * preconditions that disable a button are re-checked server-side.
+ */
+export default function GameControls({ gameState, onError }: GameControlsProps) {
+  const [processing, setProcessing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [isEditingCurrent, setIsEditingCurrent] = useState(false);
+  const [selectedLockLevel, setSelectedLockLevel] = useState<number>(gameState.currentQuestionNumber || 1);
+  const isOneShot = GameLogic.isOneShot(gameState);
+
+  // Update selected lock level when current question changes
+  useEffect(() => {
+    if (gameState.currentQuestionNumber) {
+      setSelectedLockLevel(gameState.currentQuestionNumber);
+    }
+  }, [gameState.currentQuestionNumber]);
+
+  /** Send an intent, showing `label` + the server's reason if it is refused. */
+  const run = async (label: string, event: string, payload?: unknown) => {
+    if (processing) return;
+    try {
+      setProcessing(true);
+      await gameStateManager.sendOrThrow(event, payload);
+    } catch (error) {
+      onError(`${label}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  /** Quick taps (option reveals, guesses) — no spinner, just report a refusal. */
+  const fire = (label: string, event: string, payload?: unknown) => {
+    gameStateManager.sendOrThrow(event, payload).catch((error) =>
+      onError(`${label}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    );
+  };
+
+  const handleSubmitPanelGuess = (guess: Option) => {
+    if (!gameState.currentQuestion || gameState.panelGuessChecked) return;
+    fire('Failed to submit panel guess', OP.SUBMIT_PANEL_GUESS, { guess });
+  };
+
+  const handleCheckPanelGuess = () => {
+    if (!gameState.currentQuestion || !gameState.panelGuess) return;
+    run('Failed to check panel guess', OP.CHECK_PANEL_GUESS);
+  };
+
+  const handleRevealGuestAnswer = () => {
+    if (!gameState.currentQuestion) return;
+    run('Failed to reveal guest answer', OP.REVEAL_GUEST_ANSWER);
+  };
+
+  const handlePlaceLock = () => {
+    if (!GameLogic.canPlaceLock(gameState)) return;
+    run('Failed to place lock', OP.PLACE_LOCK, { level: selectedLockLevel });
+  };
+
+  // Manual data download (operator can trigger anytime)
+  const handleDownloadData = async () => {
+    if (downloading) return;
+    try {
+      setDownloading(true);
+      await downloadGameData();
+    } catch (error) {
+      console.error('Error downloading game data:', error);
+      onError(`Failed to download game data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleResetGame = async () => {
+    if (processing) return;
+
+    if (!confirm('Are you sure you want to reset the game? A backup file will download first. Questions are kept, but the game state and play-along answers are reset, and all registered players are removed and logged out of their phones.')) {
+      return;
+    }
+
+    try {
+      setProcessing(true);
+      // Auto-backup before wiping any data — abort the reset if it fails
+      await downloadGameData();
+      await gameStateManager.sendOrThrow(OP.RESET_GAME);
+    } catch (error) {
+      console.error('Error resetting game:', error);
+      onError(`Failed to reset game: ${error instanceof Error ? error.message : 'Unknown error'} (no data was wiped)`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleResetEverything = async () => {
+    if (processing) return;
+
+    if (!confirm('Are you sure you want to reset EVERYTHING? A backup file will download first, then ALL questions, participants and play-along data are deleted, all registered players are logged out of their phones, and the game resets to state zero. This cannot be undone!')) {
+      return;
+    }
+
+    try {
+      setProcessing(true);
+      // Auto-backup before wiping any data — abort the reset if it fails
+      await downloadGameData();
+      await gameStateManager.sendOrThrow(OP.RESET_EVERYTHING);
+    } catch (error) {
+      console.error('Error in reset everything:', error);
+      onError(`Failed to reset everything: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleStartAllOrNothing = () => {
+    if (!GameLogic.canStartAllOrNothing(gameState)) return;
+    run('Failed to start All or Nothing', OP.START_ALL_OR_NOTHING);
+  };
+
+  const handleTriggerGameOver = () => {
+    if (!GameLogic.canTriggerGameOver(gameState)) return;
+    run('Failed to trigger game over', OP.TRIGGER_GAME_OVER);
+  };
+
+  const handleToggleAllOrNothingModal = () => run('Failed to toggle modal', OP.TOGGLE_AON_MODAL);
+  const handleToggleGuestVictoryModal = () => run('Failed to toggle guest victory modal', OP.TOGGLE_GUEST_VICTORY);
+  const handleToggleGuestLostModal = () => run('Failed to toggle guest lost modal', OP.TOGGLE_GUEST_LOST);
+
+  const handleRevealAllOrNothingResult = () => {
+    if (!gameState.allOrNothingActive || !gameState.currentQuestion ||
+      !gameState.panelGuess || !gameState.panelGuessSubmitted || gameState.panelGuessChecked) return;
+    run('Failed to reveal All or Nothing result', OP.REVEAL_AON_RESULT);
+  };
+
+  const handleHideOption = (option: Option) => {
+    if (processing || gameState.hideOptionUsed || !gameState.currentQuestion) return;
+
+    if (!confirm(`Are you sure you want to hide option ${option}? This is a one-time use lifeline!`)) {
+      return;
+    }
+
+    run('Failed to hide option', OP.HIDE_OPTION, { option });
+  };
+
+  // The server keeps normal and All-or-Nothing reveals in separate lists.
+  const handleRevealOption = (option: Option) => {
+    if (!gameState.currentQuestion) return;
+    fire('Failed to reveal option', OP.REVEAL_OPTION, { option });
+  };
+
+  const handleUnrevealOption = (option: Option) => {
+    if (!gameState.currentQuestion) return;
+    fire('Failed to hide option again', OP.UNREVEAL_OPTION, { option });
+  };
+
+  const handleRevealAllOptions = () => {
+    if (!gameState.currentQuestion) return;
+    fire('Failed to reveal options', OP.REVEAL_ALL_OPTIONS);
+  };
+
+  /**
+   * Master reset for the round on screen: back to step 1 of this question.
+   * The server restores the snapshot it took when the question was selected,
+   * so the guess, the check, the reveal and anything it scored rewind together.
+   */
+  const handleResetQuestion = () => {
+    if (processing || !gameState.currentQuestion) return;
+
+    // Only confirm once the round has actually scored something. Clearing a
+    // few revealed options is not worth a dialog mid-show.
+    const hasScored =
+      gameState.panelGuessChecked ||
+      gameState.currentQuestionAnswerRevealed ||
+      !!gameState.oneShotOutcome;
+
+    if (hasScored && !confirm(
+      [
+        'Reset this question back to step 1?',
+        '',
+        'The guess, the reveal and anything this round scored (a life, a ladder',
+        'step, or the contestant result) will be undone. Earlier questions are',
+        'not affected.',
+      ].join('\n')
+    )) {
+      return;
+    }
+
+    run('Failed to reset question', OP.RESET_QUESTION);
+  };
+
+  const handleToggleLogo = () => {
+    fire('Failed to toggle logo', OP.SET_FLAGS, { showLogo: !gameState.showLogo });
+  };
+
+  return (
+    <div className="bg-gray-800 rounded-lg p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-white">Game Controls</h2>
+        {/* Logo Toggle */}
+        <button
+          onClick={handleToggleLogo}
+          className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+            gameState.showLogo
+              ? 'bg-yellow-500 text-black hover:bg-yellow-400'
+              : 'bg-gray-600 text-white hover:bg-gray-500'
+          }`}
+        >
+          {gameState.showLogo ? '🎬 Hide Logo' : '🎬 Show Logo'}
+        </button>
+      </div>
+
+      {/* Current Question Display */}
+      {gameState.currentQuestion ? (
+        <div className="bg-blue-900 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold text-white">Current Question</h3>
+            {!isEditingCurrent && (
+              <button
+                onClick={() => setIsEditingCurrent(true)}
+                className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-500 transition-colors"
+              >
+                ✏️ Edit
+              </button>
+            )}
+          </div>
+
+          {isEditingCurrent ? (
+            /* Same editor the pool uses — saving here also writes the stored
+               pool, so the two panels can never drift apart. */
+            <QuestionEditor
+              question={gameState.currentQuestion}
+              gameState={gameState}
+              onSaved={() => setIsEditingCurrent(false)}
+              onCancel={() => setIsEditingCurrent(false)}
+              onError={onError}
+            />
+          ) : (
+            <>
+              <p className="text-gray-200 mb-4">{gameState.currentQuestion.question}</p>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <div className="text-gray-300">A) {gameState.currentQuestion.option_a}</div>
+                <div className="text-gray-300">B) {gameState.currentQuestion.option_b}</div>
+                <div className="text-gray-300">C) {gameState.currentQuestion.option_c}</div>
+                <div className="text-gray-300">D) {gameState.currentQuestion.option_d}</div>
+              </div>
+              <div className="text-sm text-yellow-300">
+                {isOneShot ? 'Contestant' : 'Guest'} Answer: {gameState.currentQuestion.guest_answer}
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="bg-gray-700 rounded-lg p-4 mb-6">
+          <h3 className="text-lg font-semibold text-white mb-2">No Question Selected</h3>
+          <p className="text-gray-300">Please select a question from the pool below to start the game.</p>
+        </div>
+      )}
+
+      {/* Option Reveal Control - Show at top for easy access.
+          currentQuestion can be null mid-All-or-Nothing (startAllOrNothing clears it),
+          so we require it here — the option text below dereferences it. */}
+      {gameState.currentQuestion && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-3">Reveal Options (Operator Controlled)</h3>
+          <div className="bg-gray-700 p-4 rounded-lg border border-gray-600">
+            <p className="text-sm text-gray-300 mb-3">
+              Reveal options one by one in any order. Audience will see them as you reveal them.
+            </p>
+            <div className="grid grid-cols-1 gap-2 mb-3">
+              {(['A', 'B', 'C', 'D'] as const).map((option) => {
+                const activeRevealed = gameState.allOrNothingActive
+                  ? (gameState.aonRevealedOptions || [])
+                  : (gameState.revealedOptions || []);
+                const isRevealed = activeRevealed.includes(option);
+                const optionText = option === 'A' ? gameState.currentQuestion!.option_a :
+                  option === 'B' ? gameState.currentQuestion!.option_b :
+                    option === 'C' ? gameState.currentQuestion!.option_c :
+                      gameState.currentQuestion!.option_d;
+                return (
+                  <div key={option} className="flex gap-2">
+                    <button
+                      onClick={() => handleRevealOption(option)}
+                      disabled={isRevealed}
+                      className={`flex-1 px-4 py-3 rounded font-semibold transition-colors text-left ${isRevealed
+                          ? 'bg-green-600 text-white cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-500'
+                        } disabled:opacity-50`}
+                    >
+                      <span className="font-bold">{option}:</span> {isRevealed ? '✓ ' : ''}{optionText}
+                    </button>
+                    {/* Undo a single misclick without wiping the whole reveal order */}
+                    {isRevealed && (
+                      <button
+                        onClick={() => handleUnrevealOption(option)}
+                        title={`Hide option ${option} again`}
+                        className="px-3 py-3 bg-gray-600 text-white rounded font-semibold hover:bg-gray-500 transition-colors"
+                      >
+                        ↩ Hide
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {(() => {
+              const activeRevealed = gameState.allOrNothingActive
+                ? (gameState.aonRevealedOptions || [])
+                : (gameState.revealedOptions || []);
+              return (
+                <>
+                  <button
+                    onClick={handleResetQuestion}
+                    disabled={processing}
+                    className="w-full px-4 py-2 bg-orange-600 text-white rounded font-semibold hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {processing ? 'Resetting...' : '🔄 Reset Question (Back to Step 1)'}
+                  </button>
+                  <button
+                    onClick={handleRevealAllOptions}
+                    disabled={activeRevealed.length === 4}
+                    className="w-full px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mt-2"
+                  >
+                    ⚡ Reveal All Options
+                  </button>
+                  {activeRevealed.length > 0 && (
+                    <p className="text-green-400 mt-2 text-sm">
+                      Revealed in order: {activeRevealed.join(', ')}
+                    </p>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Step 1: Panel Guess - Hide during All or Nothing */}
+      {!gameState.allOrNothingActive && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-3">Step 1: Panel Guess</h3>
+          <div className="flex gap-2">
+            {(['A', 'B', 'C', 'D'] as const).map((option) => (
+              <button
+                key={option}
+                onClick={() => handleSubmitPanelGuess(option)}
+                disabled={processing || gameState.panelGuessChecked || !gameState.currentQuestion}
+                className={`px-4 py-2 rounded font-semibold transition-colors ${gameState.panelGuess === option
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          {gameState.panelGuess && (
+            <p className="text-green-400 mt-2">Panel guess: {gameState.panelGuess}</p>
+          )}
+          {!gameState.currentQuestion && (
+            <p className="text-yellow-400 mt-2">Select a question first</p>
+          )}
+        </div>
+      )}
+
+      {/* Step 2: Check Panel Guess - Hide during All or Nothing */}
+      {!gameState.allOrNothingActive && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-3">Step 2: Check Panel Guess</h3>
+          <button
+            onClick={handleCheckPanelGuess}
+            disabled={processing || !gameState.panelGuess || gameState.panelGuessChecked || !gameState.currentQuestion}
+            className="px-6 py-2 bg-yellow-600 text-white rounded font-semibold hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {processing ? 'Checking...' : 'Check Panel Guess'}
+          </button>
+        </div>
+      )}
+
+      {/* Step 3: Reveal Guest Answer (conditional) - Hide during All or Nothing */}
+      {!gameState.allOrNothingActive && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-3">Step 3: Reveal {isOneShot ? 'Contestant' : 'Guest'} Answer</h3>
+          {gameState.needsManualReveal ? (
+            <button
+              onClick={handleRevealGuestAnswer}
+              disabled={processing || gameState.currentQuestionAnswerRevealed}
+              className="px-6 py-2 bg-red-600 text-white rounded font-semibold hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {processing ? 'Revealing...' : `Reveal ${isOneShot ? 'Contestant' : 'Guest'} Answer`}
+            </button>
+          ) : (
+            <div className="text-gray-400">
+              {gameState.panelGuessChecked ? 'Auto-revealed (answers matched)' : 'Will show after checking panel guess'}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Hide Option Control - classic only, and hidden during All or Nothing */}
+      {!isOneShot && !gameState.allOrNothingActive && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-3">Hide Option (One-Time Use)</h3>
+          {gameState.hideOptionUsed ? (
+            <div className="p-3 bg-gray-700 rounded border border-gray-600 text-gray-400">
+              🚫 Hide Option lifeline has been used
+            </div>
+          ) : (
+            <div className="bg-gray-700 p-4 rounded-lg border border-gray-600">
+              <p className="text-sm text-gray-300 mb-3">Select an option to hide from the audience display:</p>
+              <div className="flex gap-2">
+                {(['A', 'B', 'C', 'D'] as const).map((option) => (
+                  <button
+                    key={option}
+                    onClick={() => handleHideOption(option)}
+                    disabled={processing || !gameState.currentQuestion || gameState.hiddenOption === option}
+                    className={`px-4 py-2 rounded font-semibold transition-colors ${gameState.hiddenOption === option
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    Hide {option}
+                  </button>
+                ))}
+              </div>
+              {gameState.hiddenOption && (
+                <p className="text-purple-400 mt-2 text-sm">
+                  Option {gameState.hiddenOption} is currently hidden on audience screen.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lock Controls - classic only, and hidden during All or Nothing */}
+      {!isOneShot && !gameState.allOrNothingActive && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-3">Lock Control</h3>
+          {GameLogic.canPlaceLock(gameState) ? (
+            <div className="space-y-3">
+              {/* Lock Level Dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Select Lock Level
+                </label>
+                <select
+                  value={selectedLockLevel}
+                  onChange={(e) => setSelectedLockLevel(Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  disabled={processing}
+                >
+                  {PRIZE_TIERS.map((tier) => (
+                    <option key={tier.level} value={tier.level}>
+                      Level {tier.level} - {tier.displayText} (₹{tier.amount.toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Place Lock Button */}
+              <button
+                onClick={handlePlaceLock}
+                disabled={processing}
+                className="w-full px-6 py-2 bg-purple-600 text-white rounded font-semibold hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {processing ? 'Placing...' : `Place Lock at ${PRIZE_TIERS.find(t => t.level === selectedLockLevel)?.displayText || '₹0'}`}
+              </button>
+            </div>
+          ) : (
+            <div className="text-gray-400">
+              Lock not available (need to use immunity first)
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* All or Nothing Controls */}
+      {GameLogic.canStartAllOrNothing(gameState) && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-3">🎰 All or Nothing</h3>
+          <div className="bg-red-900 border border-red-600 rounded-lg p-4 mb-4">
+            <div className="text-red-400 font-semibold mb-2">⚠️ Final Gamble Available</div>
+            <div className="text-red-300 text-sm mb-3">
+              Guest has lost all lives. Start All or Nothing phase for a chance to win ₹50,000 flat!
+            </div>
+            <p className="text-xs text-gray-400 mb-3">
+              Panel gets 2 attempts to answer correctly. If panel fails both, guest wins ₹50,000.
+              If panel succeeds on either attempt, guest leaves with ₹0 (even locked money).
+            </p>
+            <button
+              onClick={() => handleStartAllOrNothing()}
+              disabled={processing}
+              className="px-6 py-2 bg-red-600 text-white rounded font-semibold hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {processing ? 'Starting...' : '🎰 Start All or Nothing'}
+            </button>
+            <p className="text-yellow-400 text-xs mt-2">Select a question after starting</p>
+          </div>
+        </div>
+      )}
+
+      {/* All or Nothing Game Flow */}
+      {gameState.allOrNothingActive && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-3">
+            🎰 All or Nothing - Attempt {gameState.allOrNothingAttempt}/2
+          </h3>
+
+          <div className="bg-red-900 border border-red-600 rounded-lg p-4 mb-4">
+            <div className="text-yellow-400 font-semibold mb-2">
+              Playing for: ₹50,000 FLAT
+            </div>
+            <div className="text-red-300 text-sm">
+              Panel Attempt {gameState.allOrNothingAttempt} of 2
+            </div>
+          </div>
+
+          {!gameState.currentQuestion ? (
+            <div className="mb-4 p-4 bg-yellow-900 border border-yellow-600 rounded-lg">
+              <div className="text-yellow-400 font-semibold mb-2">⚠️ No Question Selected</div>
+              <div className="text-yellow-300 text-sm">
+                Please select a question from the question pool below to continue All or Nothing.
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Panel Guess Buttons */}
+              <div className="mb-4">
+                <h4 className="text-md font-semibold text-white mb-3">
+                  Step 1: Panel Answer {gameState.panelGuessSubmitted && !gameState.panelGuessChecked && <span className="text-blue-400 text-sm font-normal ml-2">— selected, not yet revealed</span>}
+                </h4>
+                <div className="flex gap-2">
+                  {(['A', 'B', 'C', 'D'] as const).map((option) => (
+                    <button
+                      key={option}
+                      onClick={() => handleSubmitPanelGuess(option)}
+                      disabled={processing || !gameState.currentQuestion || gameState.panelGuessChecked || gameState.allOrNothingComplete || (gameState.allOrNothingAttempt === 2 && option === gameState.allOrNothingAttempt1Guess)}
+                      className={`px-4 py-2 rounded font-semibold transition-colors ${
+                        gameState.panelGuess === option
+                          ? gameState.panelGuessChecked
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-blue-600 text-white'
+                          : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Step 2: Reveal result button — appears once a guess is selected */}
+                {gameState.panelGuessSubmitted && !gameState.panelGuessChecked && !gameState.allOrNothingComplete && (
+                  <button
+                    onClick={handleRevealAllOrNothingResult}
+                    disabled={processing}
+                    className="mt-3 w-full px-6 py-2 bg-yellow-600 text-white rounded font-semibold hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {processing ? 'Revealing...' : '🎯 Step 2: Reveal AoN Result'}
+                  </button>
+                )}
+
+                {gameState.panelGuessChecked && gameState.currentQuestionAnswerRevealed && (
+                  <div className="mt-3 p-3 rounded border">
+                    {gameState.allOrNothingComplete ? (
+                      gameState.allOrNothingWon ? (
+                        <div className="bg-green-900 border-green-600 text-green-400">
+                          🎉 GUEST WINS ₹50,000! Panel failed both attempts!
+                        </div>
+                      ) : (
+                        <div className="bg-red-900 border-red-600 text-red-400">
+                          💀 Game Over! Panel correct - Guest gets ₹0
+                        </div>
+                      )
+                    ) : (
+                      <div className="bg-blue-900 border-blue-600 text-blue-400">
+                        ❌ Panel Wrong! Moving to Attempt 2...
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Game Over Control - Show when guest has lost all lives */}
+      {GameLogic.canTriggerGameOver(gameState) && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-3">💀 Game Control</h3>
+          <div className="bg-red-900 border border-red-600 rounded-lg p-4">
+            <div className="text-red-400 font-semibold mb-2">⚠️ Guest Eliminated</div>
+            <div className="text-red-300 text-sm mb-3">
+              Guest has lost all lives. Show the final game over screen to end the show.
+            </div>
+            <button
+              onClick={handleTriggerGameOver}
+              disabled={processing}
+              className="px-6 py-2 bg-red-600 text-white rounded font-semibold hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {processing ? 'Ending Game...' : '💀 Show Game Over'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* All or Nothing Modal Controls */}
+      {(gameState.allOrNothingPendingPanelWin || gameState.allOrNothingPendingGuestWin || gameState.allOrNothingModalVisible) && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-3">🎯 All or Nothing Controls</h3>
+
+          {/* Smart Result Control - Always available once All or Nothing concludes */}
+          {(gameState.allOrNothingWon === true || gameState.allOrNothingWon === false) && (
+              <div className="bg-purple-900 border border-purple-600 rounded-lg p-4 mb-3">
+                <div className="text-purple-400 font-semibold mb-2">
+                  🎭 Result Display
+                </div>
+                <div className="text-purple-300 text-sm mb-3">
+                  {gameState.allOrNothingModalVisible
+                    ? `Showing ${gameState.allOrNothingWon ? 'Guest Victory (₹50,000)' : 'Panel Victory (₹0)'} modal. Click to hide.`
+                    : `Result ready: ${gameState.allOrNothingWon ? 'Guest Won!' : 'Panel Won!'}. Click to display.`
+                  }
+                </div>
+                <button
+                  onClick={handleToggleAllOrNothingModal}
+                  disabled={processing}
+                  className="px-6 py-2 bg-purple-600 text-white rounded font-semibold hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {processing
+                    ? 'Processing...'
+                    : gameState.allOrNothingModalVisible
+                      ? '🚫 Hide Result'
+                      : `🎭 Show ${gameState.allOrNothingWon ? '🎉 Guest Victory' : '💀 Panel Victory'}`
+                  }
+                </button>
+              </div>
+            )}
+        </div>
+      )}
+
+      {/* Guest Victory Modal Controls */}
+      {gameState.guestVictoryPending && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-3">🏆 Guest Victory Controls</h3>
+          <div className="bg-gradient-to-r from-yellow-900 to-green-900 p-4 rounded-lg">
+            <div className="text-white text-sm mb-3">
+              {gameState.lives === 0 && gameState.lock.placed ? (
+                <>
+                  🔒 <strong>Guest lost all lives but has locked ₹{gameState.lockedMoney.toLocaleString()}!</strong>
+                  <br />
+                  {gameState.guestVictoryModalVisible
+                    ? '✅ Lock Victory modal is currently shown to audience. Click to hide.'
+                    : '⏳ Ready to celebrate! Click to show lock victory modal with confetti.'}
+                </>
+              ) : (
+                <>
+                  🎊 <strong>Guest won {gameState.questionsAnswered} questions and reached ₹{gameState.prize.toLocaleString()}!</strong>
+                  <br />
+                  📊 Current level: ₹{gameState.prize.toLocaleString()} | Lives: {gameState.lives} | Questions answered: {gameState.questionsAnswered}/7
+                  {gameState.lock.placed && (
+                    <>
+                      <br />
+                      🔓 Lock was placed at ₹{gameState.lockedMoney.toLocaleString()}, but guest WON with {gameState.lives} life remaining!
+                    </>
+                  )}
+                  <br />
+                  {gameState.guestVictoryModalVisible
+                    ? '✅ Guest Victory modal is currently shown to audience. Click to hide.'
+                    : '⏳ Ready to celebrate! Click to show victory modal with confetti.'}
+                </>
+              )}
+            </div>
+            <button
+              onClick={handleToggleGuestVictoryModal}
+              disabled={processing}
+              className="px-6 py-2 bg-purple-600 text-white rounded font-semibold hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {processing
+                ? 'Processing...'
+                : gameState.guestVictoryModalVisible
+                  ? '🚫 Hide Victory Modal'
+                  : (gameState.lives === 0 && gameState.lock.placed)
+                    ? `🎉 Show Lock Victory (₹${gameState.lockedMoney.toLocaleString()})`
+                    : `🎉 Show Guest Victory (₹${gameState.prize.toLocaleString()})`
+              }
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Guest Lost Modal Controls */}
+      {gameState.guestLostPending && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-white mb-3">💀 Guest Elimination Controls</h3>
+            <div className="bg-gradient-to-r from-red-900 to-gray-900 p-4 rounded-lg">
+              <div className="text-white text-sm mb-3">
+                💔 <strong>Guest lost all lives without placing the lock!</strong>
+                <br />
+                {gameState.guestLostModalVisible
+                  ? '✅ Guest elimination modal is currently shown to audience. Click to hide and show game over.'
+                  : '⏳ Ready to show elimination. Click to display guest elimination modal.'}
+              </div>
+              <button
+                onClick={handleToggleGuestLostModal}
+                disabled={processing}
+                className="px-6 py-2 bg-red-600 text-white rounded font-semibold hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {processing
+                  ? 'Processing...'
+                  : gameState.guestLostModalVisible
+                    ? '🚫 Hide & Show Game Over'
+                    : '💀 Show Guest Elimination'
+                }
+              </button>
+            </div>
+          </div>
+        )}
+
+      {/* Data Export - Always Show */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-white mb-3">Data Export</h3>
+        <button
+          onClick={handleDownloadData}
+          disabled={downloading}
+          className="px-6 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {downloading ? '⏳ Preparing…' : '⬇️ Download Data'}
+        </button>
+        <p className="mt-2 text-sm text-gray-400">
+          Downloads one Excel file with participants, leaderboard, every play-along answer, and the full game record.
+        </p>
+      </div>
+
+      {/* Reset Controls - Always Show */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-white mb-3">Reset Controls</h3>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleResetGame}
+            disabled={processing}
+            className="px-6 py-2 bg-orange-600 text-white rounded font-semibold hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            🔄 Reset Game Only
+          </button>
+
+          <button
+            onClick={handleResetEverything}
+            disabled={processing}
+            className="px-6 py-2 bg-red-700 text-white rounded font-semibold hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            ⚠️ Reset EVERYTHING
+          </button>
+        </div>
+      </div>
+
+      {/* Reset Information */}
+      <div className="p-3 bg-gray-700 rounded text-sm text-gray-300">
+        <p>💾 <strong>Auto-backup:</strong> Both resets download a full data backup before wiping anything</p>
+        <p>🔄 <strong>Reset Game Only:</strong> Keeps questions; clears game state, play-along answers &amp; registered players (players are logged out)</p>
+        <p>⚠️ <strong>Reset EVERYTHING:</strong> Deletes ALL questions, play-along data + resets to state zero</p>
+      </div>
+    </div>
+  );
+}
