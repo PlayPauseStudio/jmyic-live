@@ -142,23 +142,12 @@ previous one's.
 
 - [ ] Strip shows Server · Big screen · Phones · Answers · Server load · Backup · Log, and stays at the top while scrolling
 - [ ] Close the big screen tab → "Big screen: Not connected" turns red within ~2 s; reopen → green again
-- [ ] Phones: "online" counts open `/play` tabs; "registered" counts signed-up phones (fake players not included)
+- [ ] Phones: "online" counts open `/play` tabs; "registered" counts signed-up phones
 - [ ] Answers counts play-along answers to the question on screen
 - [ ] Backup says "Saved … ago" in green (Redis). Red means a restart now would lose recent changes
 - [ ] Turn the laptop's Wi-Fi off → Server goes red ("Reconnecting…"); back on → green
 
-## 11. Rehearsal mode (left column, under Play Along)
-
-- [ ] **+ 200 fake** → orange REHEARSAL banner at the top, Rehearsal box turns orange
-- [ ] Select a question and reveal one option → fake players wait; reveal a second → answers start arriving over a few seconds, about half right
-- [ ] Show the leaderboard → big screen fills with fake names; per-question filters, fastest/slowest all work; "+ N more" appears past 50
-- [ ] Untick "answer automatically" → no new fake answers on the next question
-- [ ] **+ 1000 fake** → the operator panel and big screen stay smooth
-- [ ] Remove all fake players → asks to confirm → banner gone, fake answers gone from table and leaderboard, a real phone's answers are still there
-- [ ] Reset Game also removes fake players
-- [ ] Excel export marks fake players "Yes" in the Participants sheet's "Fake (rehearsal)" column
-
-## 12. Episode log (Excel → Episode Log sheet)
+## 11. Episode log (Excel → Episode Log sheet)
 
 - [ ] Play a few rounds, then Download Excel → Episode Log lists every click in order with time and "Into Episode"
 - [ ] Each round has: question selected, options revealed, panel guess, checked, "Answers closed" (count + A/B/C/D split), answer revealed, play-along result (how many got it right), and the result (life lost / round won / ladder moved)
@@ -169,7 +158,7 @@ previous one's.
 - [ ] Reset Game → log continues. Reset Everything → the backup Excel taken before it has the full log; the new log starts with "Reset Everything"
 - [ ] Railway → Redeploy mid-show → the log survives, with a "Server started — Show restored from the Redis backup" row
 
-## 13. Load (done on the server, for reference)
+## 12. Load (done on the server, for reference)
 
 Simulated with 1000 and 2000 phones all answering in the same instant:
 every answer accepted, all confirmed within ~0.2 s (1000) / ~0.3 s (2000).

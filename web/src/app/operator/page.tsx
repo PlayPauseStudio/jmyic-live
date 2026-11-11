@@ -10,7 +10,6 @@ import FormatToggle from '@/components/operator/FormatToggle';
 import PlayAlongPanel from '@/components/operator/PlayAlongPanel';
 import PasswordGate, { OPERATOR_TOKEN_KEY } from '@/components/operator/PasswordGate';
 import StatusStrip from '@/components/operator/StatusStrip';
-import RehearsalPanel from '@/components/operator/RehearsalPanel';
 
 export default function OperatorPanel() {
   // The operator JWT from the server. Survives a refresh, dies with the tab.
@@ -104,7 +103,6 @@ export default function OperatorPanel() {
             gameState={gameState}
           />
           <PlayAlongPanel gameState={gameState} onError={handleError} />
-          <RehearsalPanel gameState={gameState} onError={handleError} />
         </div>
 
         {/* Center Column: Question Pool */}

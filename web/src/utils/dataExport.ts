@@ -29,8 +29,6 @@ interface RawParticipant {
   name?: string;
   phone?: string;
   createdAt?: number | string;
-  /** A rehearsal-mode fake player. */
-  fake?: boolean;
 }
 
 /** One row of the server's episode log (server/src/game/state.ts LogEntry). */
@@ -193,12 +191,11 @@ export function buildWorkbook(data: GatheredGameData): XLSX.WorkBook {
     Phone: p.phone ?? '',
     UID: p.uid ?? '',
     'Registered At': fmtTimestamp(p.createdAt),
-    'Fake (rehearsal)': p.fake ? 'Yes' : '',
   }));
   const participantsSheet = XLSX.utils.json_to_sheet(
-    participantRows.length ? participantRows : [{ Name: '', Phone: '', UID: '', 'Registered At': '', 'Fake (rehearsal)': '' }]
+    participantRows.length ? participantRows : [{ Name: '', Phone: '', UID: '', 'Registered At': '' }]
   );
-  participantsSheet['!cols'] = [{ wch: 24 }, { wch: 18 }, { wch: 30 }, { wch: 22 }, { wch: 16 }];
+  participantsSheet['!cols'] = [{ wch: 24 }, { wch: 18 }, { wch: 30 }, { wch: 22 }];
   XLSX.utils.book_append_sheet(wb, participantsSheet, 'Participants');
 
   // -- Sheet 4: Play-Along Answers (flattened) -------------------------------

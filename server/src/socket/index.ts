@@ -7,7 +7,6 @@ import { socketAuthMiddleware } from '../auth/socketAuth';
 import type { RoomStore } from '../game/store';
 import { Broadcaster } from './broadcast';
 import { registerOperatorHandlers, type ServerInfo } from './handlers/operator';
-import { FakePlayers } from '../game/rehearsal';
 import { logSystem } from '../game/episodeLog';
 import { registerAudienceHandlers } from './handlers/audience';
 import { type AppServer, type AppSocket, ROOM_OPERATOR, ROOM_DISPLAY, ROOM_AUDIENCE } from './types';
@@ -15,7 +14,6 @@ import { type AppServer, type AppSocket, ROOM_OPERATOR, ROOM_DISPLAY, ROOM_AUDIE
 export interface RealtimeServer {
   io: AppServer;
   broadcaster: Broadcaster;
-  fakePlayers: FakePlayers;
 }
 
 /** What the server's boot code knows that the status strip shows. */
@@ -59,8 +57,6 @@ export function createIo(httpServer: HttpServer, store: RoomStore, facts: Server
 
   const broadcaster = new Broadcaster(io, store);
   broadcaster.start();
-  const fakePlayers = new FakePlayers(store, broadcaster);
-  fakePlayers.start();
 
   const roomSize = (room: string): number => io.sockets.adapter.rooms.get(room)?.size ?? 0;
   const info: ServerInfo = {
@@ -104,5 +100,5 @@ export function createIo(httpServer: HttpServer, store: RoomStore, facts: Server
     });
   });
 
-  return { io, broadcaster, fakePlayers };
+  return { io, broadcaster };
 }

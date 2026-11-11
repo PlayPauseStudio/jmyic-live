@@ -335,7 +335,6 @@ export function resetGame(s: ServerState): ServerState {
     players: {},
     answers: {},
     questionMeta: {},
-    rehearsal: { ...s.rehearsal, bots: 0 },
   };
 }
 
@@ -352,67 +351,7 @@ export function resetEverything(s: ServerState): ServerState {
     questionMeta: {},
     // A new episode: the old log went out in the backup taken before the reset.
     log: [],
-    rehearsal: { ...s.rehearsal, bots: 0 },
   };
-}
-
-// ── Rehearsal mode ───────────────────────────────────────────────────────────
-
-/** Fake players are capped so a rehearsal can't outgrow a real show. */
-export const MAX_FAKE_PLAYERS = 2000;
-export const FAKE_UID_PREFIX = 'rehearsal_';
-
-const FIRST_NAMES = [
-  'Aarav', 'Priya', 'Rohan', 'Ananya', 'Vikram', 'Isha', 'Kabir', 'Meera', 'Arjun', 'Diya',
-  'Rahul', 'Sneha', 'Aditya', 'Kavya', 'Nikhil', 'Pooja', 'Siddharth', 'Riya', 'Karan', 'Tanvi',
-  'Varun', 'Neha', 'Yash', 'Aisha', 'Dev', 'Shreya', 'Manav', 'Nisha', 'Harsh', 'Zoya',
-];
-const INITIALS = 'ABCDGJKMNPRSTVY';
-
-/**
- * Rehearsal: register fake players so the leaderboard and play-along table can
- * be tried with a crowd. Their numbers start with 0, which no real Indian
- * mobile does, so they can never clash with a real phone.
- */
-export function addFakePlayers(s: ServerState, count: number): ServerState {
-  const room = MAX_FAKE_PLAYERS - s.rehearsal.bots;
-  if (room <= 0) fail('too_many_fake');
-  const n = Math.min(count, room);
-  const idx = phoneIndex(s.players);
-  const now = Date.now();
-  for (let i = 0; i < n; i++) {
-    const k = s.rehearsal.bots + i + 1;
-    const uid = `${FAKE_UID_PREFIX}${k}`;
-    const name = `${FIRST_NAMES[k % FIRST_NAMES.length]} ${INITIALS[Math.floor(k / FIRST_NAMES.length) % INITIALS.length]}.`;
-    const phone = `+910${String(k).padStart(9, '0')}`;
-    s.players[uid] = { uid, name, phone, createdAt: now, fake: true };
-    idx.set(phone, uid);
-  }
-  return { ...s, rehearsal: { ...s.rehearsal, bots: s.rehearsal.bots + n } };
-}
-
-/** Remove every fake player and every answer they gave. Real players are untouched. */
-export function removeFakePlayers(s: ServerState): ServerState {
-  if (s.rehearsal.bots === 0) return s;
-  const isFake = (uid: string) => uid.startsWith(FAKE_UID_PREFIX);
-  const players: ServerState['players'] = {};
-  for (const [uid, p] of Object.entries(s.players)) if (!isFake(uid)) players[uid] = p;
-  const answers: ServerState['answers'] = {};
-  for (const [q, bucket] of Object.entries(s.answers)) {
-    if (!Object.keys(bucket).some(isFake)) {
-      answers[q] = bucket;
-      continue;
-    }
-    const kept: typeof bucket = {};
-    for (const [uid, a] of Object.entries(bucket)) if (!isFake(uid)) kept[uid] = a;
-    answers[q] = kept;
-  }
-  return { ...s, players, answers, rehearsal: { ...s.rehearsal, bots: 0 } };
-}
-
-export function setFakeAutoAnswer(s: ServerState, on: boolean): ServerState {
-  if (s.rehearsal.autoAnswer === on) return s;
-  return { ...s, rehearsal: { ...s.rehearsal, autoAnswer: on } };
 }
 
 // ── Play-along (phones) ──────────────────────────────────────────────────────

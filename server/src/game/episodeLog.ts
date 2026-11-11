@@ -162,12 +162,6 @@ function describeAction(
       return [{ event: 'Reset Everything', details: 'New episode log started', q: '' }];
     case OP.EXPORT_DATA:
       return [{ event: 'Excel backup downloaded', q: '' }];
-    case OP.REHEARSAL_ADD:
-      return [{ event: 'Fake players added', details: `${after.rehearsal.bots - before.rehearsal.bots} added (${after.rehearsal.bots} total)`, q: '' }];
-    case OP.REHEARSAL_CLEAR:
-      return [{ event: 'Fake players removed', details: `${before.rehearsal.bots} removed with their answers`, q: '' }];
-    case OP.REHEARSAL_AUTO:
-      return [{ event: data.on ? 'Fake players answer automatically' : 'Fake players stopped answering', q: '' }];
     default:
       return [];
   }
@@ -183,8 +177,7 @@ function playAlongSummary(s: ServerState, qNum: number, withCorrect: boolean): s
   const split: Record<string, number> = { A: 0, B: 0, C: 0, D: 0 };
   for (const r of rows) split[r.answer]++;
   const parts = OPTIONS.map((o) => `${o} ${split[o]}`).join(' · ');
-  const fake = s.rehearsal.bots > 0 ? Object.keys(bucket!).filter((u) => s.players[u]?.fake).length : 0;
-  let text = `${rows.length} answered${fake ? ` (${fake} fake)` : ''} — ${parts}`;
+  let text = `${rows.length} answered — ${parts}`;
   const correct = withCorrect ? s.questionMeta[String(qNum)]?.correctAnswer : null;
   if (correct) text += ` — ${split[correct]} got it right (${correct})`;
   return text;

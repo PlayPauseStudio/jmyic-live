@@ -43,7 +43,19 @@ export class RoomStore {
 
   restore(snap: Snapshot): void {
     // A snapshot can come from an older server; fill anything it lacks.
-    const s = snap.state ?? ({} as Partial<ServerState>);
+    const raw = (snap.state ?? {}) as Partial<ServerState> & { rehearsal?: unknown };
+    // Rehearsal mode was removed: drop its settings and any fake players
+    // (uid rehearsal_N) a snapshot from that version still holds.
+    const { rehearsal: _removed, ...s } = raw;
+    void _removed;
+    const isFake = (uid: string) => uid.startsWith('rehearsal_');
+    const players = Object.fromEntries(Object.entries(s.players ?? {}).filter(([uid]) => !isFake(uid)));
+    const answers = Object.fromEntries(
+      Object.entries(s.answers ?? {}).map(([q, bucket]) => [
+        q,
+        Object.fromEntries(Object.entries(bucket).filter(([uid]) => !isFake(uid))),
+      ]),
+    );
     const base = initialServerState();
     this.state = {
       ...base,
@@ -51,11 +63,10 @@ export class RoomStore {
       game: normalizeGame(s.game),
       roundStart: s.roundStart ? normalizeGame(s.roundStart) : null,
       pool: s.pool ?? [],
-      players: s.players ?? {},
-      answers: s.answers ?? {},
+      players,
+      answers,
       questionMeta: s.questionMeta ?? {},
       log: Array.isArray(s.log) ? s.log : [],
-      rehearsal: { ...base.rehearsal, ...(s.rehearsal ?? {}) },
     };
     this._version = snap.version ?? 0;
   }

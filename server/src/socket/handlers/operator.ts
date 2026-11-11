@@ -140,11 +140,6 @@ export function registerOperatorHandlers(socket: AppSocket, ctx: HandlerCtx): vo
     logger.info('Operator reset everything');
   });
 
-  // ── Rehearsal mode ─────────────────────────────────────────────────────────
-  on(OP.REHEARSAL_ADD, S.rehearsalAddSchema, (d) => apply(R.addFakePlayers(gs(), d.count)));
-  on(OP.REHEARSAL_CLEAR, empty, () => apply(R.removeFakePlayers(gs())));
-  on(OP.REHEARSAL_AUTO, S.rehearsalAutoSchema, (d) => apply(R.setFakeAutoAnswer(gs(), d.on)));
-
   // ── Status strip (read-only, polled every few seconds) ─────────────────────
   on(OP.STATUS, empty, () => {
     const s = gs();
@@ -154,7 +149,6 @@ export function registerOperatorHandlers(socket: AppSocket, ctx: HandlerCtx): vo
         serverTime: Date.now(),
         online: ctx.info.online(),
         players: Object.keys(s.players).length,
-        fakePlayers: s.rehearsal.bots,
         answersNow: s.game.currentQuestion ? Object.keys(s.answers[String(s.game.currentQuestionNumber)] ?? {}).length : 0,
         worstStallMs: worstStallMs(),
         memoryMb: Math.round(process.memoryUsage().rss / 1048576),

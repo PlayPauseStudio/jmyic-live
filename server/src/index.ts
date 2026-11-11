@@ -31,7 +31,7 @@ async function main(): Promise<void> {
   };
   const app = buildApp(() => store.version, () => snapshots.status, onLogin);
   const httpServer = createServer(app);
-  const { broadcaster, fakePlayers } = createIo(httpServer, store, {
+  const { broadcaster } = createIo(httpServer, store, {
     snapshots: () => snapshots.status,
     lastSavedAt: () => lastSavedAt,
   });
@@ -79,7 +79,6 @@ async function main(): Promise<void> {
     logger.info({ signal }, 'shutting down');
     clearInterval(snapTimer);
     broadcaster.stop();
-    fakePlayers.stop();
     await snapshots.save(store.snapshot());
     await snapshots.close();
     httpServer.close(() => process.exit(0));

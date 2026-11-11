@@ -62,9 +62,6 @@ export const editQuestionSchema = z.object({
   }),
 });
 
-export const rehearsalAddSchema = z.object({ count: z.number().int().min(1).max(2000) });
-export const rehearsalAutoSchema = z.object({ on: z.boolean() });
-
 // ── Phones ───────────────────────────────────────────────────────────────────
 
 export const registerSchema = z.object({

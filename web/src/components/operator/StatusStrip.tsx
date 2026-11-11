@@ -9,7 +9,6 @@ interface ServerStatus {
   serverTime: number;
   online: { operators: number; bigScreens: number; phones: number };
   players: number;
-  fakePlayers: number;
   answersNow: number;
   worstStallMs: number;
   memoryMb: number;
@@ -116,13 +115,12 @@ export default function StatusStrip({ connected, hasQuestion }: { connected: boo
         value={s.online.bigScreens > 0 ? `${s.online.bigScreens} connected` : 'Not connected'}
       />,
     );
-    const real = s.players - s.fakePlayers;
     chips.push(
       <Chip
         key="phones"
         tone="plain"
         label="Phones"
-        value={`${s.online.phones} online · ${real} registered`}
+        value={`${s.online.phones} online · ${s.players} registered`}
         title="Online = phones with the play page open right now. Registered = signed up this episode."
       />,
     );
@@ -158,16 +156,9 @@ export default function StatusStrip({ connected, hasQuestion }: { connected: boo
     chips.push(<Chip key="log" tone="plain" label="Log" value={`${s.logRows} rows`} title="Episode log rows — in the Excel export" />);
   }
 
-  const fakes = status && !stale ? status.fakePlayers : 0;
-
   return (
     <div className="sticky top-0 z-40 mb-6 bg-gray-950/90 backdrop-blur border-b border-gray-700 px-6 py-2">
       <div className="flex flex-wrap items-center gap-2">{chips}</div>
-      {fakes > 0 && (
-        <div className="mt-2 px-3 py-1.5 rounded-md bg-amber-500 text-black text-sm font-bold">
-          REHEARSAL MODE — {fakes} fake players are in the game and on the leaderboard. Remove them in the Rehearsal box (left column) before the real show.
-        </div>
-      )}
     </div>
   );
 }

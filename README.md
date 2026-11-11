@@ -101,15 +101,6 @@ screen is connected, phones online and registered, answers to the question on
 screen, server load (longest stall in the last 10 s: green under 100 ms), and
 whether the Redis backup is saving. Anything red needs attention.
 
-**Rehearsal mode** — the box under Play Along. Adds 50 / 200 / 1000 fake
-players (up to 2000) who answer by themselves a few seconds after two or more
-options are revealed, about half of them correctly, so the play-along table
-and the leaderboard screen can be rehearsed without real phones. While any are
-in the game an orange banner says so. Remove them with the button, Reset Game,
-or Reset Everything; real phones are never touched. Fake players have phone
-numbers starting with 0 (which no real mobile has) and are marked in the
-export's Participants sheet.
-
 **Episode log** — the **Episode Log** sheet of the Excel export: one row per
 thing that happened, oldest first, with time, time into the episode, who
 (Operator / Result / Play-along / System), the question, details, and lives and
@@ -203,7 +194,7 @@ signs in with the real `jmyic-live` Firebase project.
 Verify the server on its own:
 
 ```bash
-cd server && npm run smoke   # 114 checks: login, role guards, hidden answers, both formats, play-along, export, episode log, rehearsal, resets
+cd server && npm run smoke   # 108 checks: login, role guards, hidden answers, both formats, play-along, export, episode log, status, resets
 ```
 
 It needs the server running in another terminal and **resets everything** on

@@ -291,19 +291,13 @@ async function main(): Promise<void> {
   check('log: refused action with reason', log.some((r) => r.event.startsWith('Refused:')));
   check('log never reaches the big screen or phones', !disp.wire.some((m) => m.includes('Question selected')) && !phone1.wire.some((m) => m.includes('Question selected')));
 
-  // ── Status strip + rehearsal ───────────────────────────────────────────────
+  // ── Status strip ───────────────────────────────────────────────
   console.log('\nStatus + rehearsal');
   const st = await op.send('op:status');
   check('status: counts and load', st.ok && st.status.online.bigScreens >= 1 && typeof st.status.worstStallMs === 'number');
   check('display cannot read status', (await disp.send('op:status')).error === 'forbidden');
-  check('display cannot add fake players', (await disp.send('op:rehearsalAdd', { count: 10 })).error === 'forbidden');
-  check('add 25 fake players', (await op.send('op:rehearsalAdd', { count: 25 })).ok);
   await sleep(150);
-  check('operator sees rehearsal count', op.view.rehearsal?.bots === 25 && op.view.participantCount >= 25);
-  check('fake players never reach the display as rehearsal info', disp.view.rehearsal === undefined);
-  check('remove fake players', (await op.send('op:rehearsalClear')).ok);
   await sleep(150);
-  check('fake players gone, real ones kept', op.view.rehearsal?.bots === 0 && op.view.participantCount === 2);
 
   // ── Reset Game ─────────────────────────────────────────────────────────────
   console.log('\nReset Game');
