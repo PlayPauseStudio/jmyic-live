@@ -66,6 +66,7 @@ const ERROR_TEXT: Record<string, string> = {
   aon_complete: 'All or Nothing is already over.',
   already_guessed: 'The panel already tried that option.',
   game_over_unavailable: 'Game over is not available right now.',
+  too_many_fake: 'The fake-player limit (2000) is reached.',
   server_error: 'Server error — try again.',
 };
 

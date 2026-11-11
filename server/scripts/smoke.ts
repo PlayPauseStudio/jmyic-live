@@ -280,6 +280,31 @@ async function main(): Promise<void> {
   check('export has answers + meta + pool', !!exp.data.answers['1'] && !!exp.data.questionsMeta['1'] && exp.data.questionsPool.length === 4);
   check('display never received a phone number', !disp.wire.some((m) => m.includes('9876543210') || m.includes('9123456780')));
 
+  // ── Episode log ────────────────────────────────────────────────────────────
+  console.log('\nEpisode log');
+  const log = exp.data.log as { actor: string; event: string; details: string }[];
+  const has = (event: string, details?: string) => log.some((r) => r.event === event && (!details || r.details.includes(details)));
+  check('export carries the episode log', Array.isArray(log) && log.length > 10);
+  check('log: operator actions', has('Question selected') && has('Panel guess') && has('Option revealed'));
+  check('log: results', has('Panel wrong — guest won the round') && has('Panel right — guest lost a life'));
+  check('log: play-along summary with right count', has('Play-along result', 'got it right'));
+  check('log: refused action with reason', log.some((r) => r.event.startsWith('Refused:')));
+  check('log never reaches the big screen or phones', !disp.wire.some((m) => m.includes('Question selected')) && !phone1.wire.some((m) => m.includes('Question selected')));
+
+  // ── Status strip + rehearsal ───────────────────────────────────────────────
+  console.log('\nStatus + rehearsal');
+  const st = await op.send('op:status');
+  check('status: counts and load', st.ok && st.status.online.bigScreens >= 1 && typeof st.status.worstStallMs === 'number');
+  check('display cannot read status', (await disp.send('op:status')).error === 'forbidden');
+  check('display cannot add fake players', (await disp.send('op:rehearsalAdd', { count: 10 })).error === 'forbidden');
+  check('add 25 fake players', (await op.send('op:rehearsalAdd', { count: 25 })).ok);
+  await sleep(150);
+  check('operator sees rehearsal count', op.view.rehearsal?.bots === 25 && op.view.participantCount >= 25);
+  check('fake players never reach the display as rehearsal info', disp.view.rehearsal === undefined);
+  check('remove fake players', (await op.send('op:rehearsalClear')).ok);
+  await sleep(150);
+  check('fake players gone, real ones kept', op.view.rehearsal?.bots === 0 && op.view.participantCount === 2);
+
   // ── Reset Game ─────────────────────────────────────────────────────────────
   console.log('\nReset Game');
   const resetBefore = phone1.view.playersResetAt;

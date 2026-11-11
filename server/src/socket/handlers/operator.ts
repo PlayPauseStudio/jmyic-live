@@ -7,13 +7,29 @@ import { logger } from '../../util/logger';
 import { OP, type Ack } from '../../protocol/events';
 import * as R from '../../game/reducers';
 import * as S from '../../validation/schemas';
+import { logOperatorAction, logRefused } from '../../game/episodeLog';
+import { worstStallMs } from '../../util/loadMonitor';
 
 const empty = z.object({}).default({});
+
+/** Live server facts for the operator's status strip. */
+export interface ServerInfo {
+  /** Sockets currently connected per role. */
+  online(): { operators: number; bigScreens: number; phones: number };
+  /** Redis snapshot status. */
+  snapshots(): string;
+  /** When the last snapshot reached Redis (ms), or null. */
+  lastSavedAt(): number | null;
+}
 
 export interface HandlerCtx {
   store: RoomStore;
   broadcaster: Broadcaster;
+  info: ServerInfo;
 }
+
+/** Events that only read, and so never go in the episode log. */
+const UNLOGGED = new Set<string>([OP.STATUS]);
 
 export function registerOperatorHandlers(socket: AppSocket, ctx: HandlerCtx): void {
   const { store, broadcaster } = ctx;
@@ -48,12 +64,24 @@ export function registerOperatorHandlers(socket: AppSocket, ctx: HandlerCtx): vo
         cb({ ok: false, error: 'bad_payload' });
         return;
       }
+      const before = store.getState();
       try {
         const extra = body(parsed.data);
         cb({ ok: true, ...(extra ?? {}) });
+        if (!UNLOGGED.has(event)) {
+          // The action already happened; a logging bug must never look like it failed.
+          try {
+            logOperatorAction(event, parsed.data, before, store.getState());
+            store.markChanged();
+          } catch (logErr) {
+            logger.warn({ event, err: logErr instanceof Error ? logErr.message : logErr }, 'Episode log failed');
+          }
+        }
       } catch (e) {
         if (e instanceof R.OpError) {
           cb({ ok: false, error: e.code });
+          logRefused(store.getState(), event, e.code);
+          store.markChanged();
           return;
         }
         logger.error({ event, err: e instanceof Error ? e.message : e }, 'Operator handler error');
@@ -112,6 +140,32 @@ export function registerOperatorHandlers(socket: AppSocket, ctx: HandlerCtx): vo
     logger.info('Operator reset everything');
   });
 
+  // ── Rehearsal mode ─────────────────────────────────────────────────────────
+  on(OP.REHEARSAL_ADD, S.rehearsalAddSchema, (d) => apply(R.addFakePlayers(gs(), d.count)));
+  on(OP.REHEARSAL_CLEAR, empty, () => apply(R.removeFakePlayers(gs())));
+  on(OP.REHEARSAL_AUTO, S.rehearsalAutoSchema, (d) => apply(R.setFakeAutoAnswer(gs(), d.on)));
+
+  // ── Status strip (read-only, polled every few seconds) ─────────────────────
+  on(OP.STATUS, empty, () => {
+    const s = gs();
+    const saved = ctx.info.lastSavedAt();
+    return {
+      status: {
+        serverTime: Date.now(),
+        online: ctx.info.online(),
+        players: Object.keys(s.players).length,
+        fakePlayers: s.rehearsal.bots,
+        answersNow: s.game.currentQuestion ? Object.keys(s.answers[String(s.game.currentQuestionNumber)] ?? {}).length : 0,
+        worstStallMs: worstStallMs(),
+        memoryMb: Math.round(process.memoryUsage().rss / 1048576),
+        snapshots: ctx.info.snapshots(),
+        savedAgoMs: saved ? Date.now() - saved : null,
+        uptimeS: Math.round(process.uptime()),
+        logRows: s.log.length,
+      },
+    };
+  });
+
   // ── Export (read-only) ─────────────────────────────────────────────────────
   // The only place phone numbers leave the server: the operator's backup file.
   on(OP.EXPORT_DATA, empty, () => {
@@ -124,6 +178,7 @@ export function registerOperatorHandlers(socket: AppSocket, ctx: HandlerCtx): vo
         questionsPool: s.pool,
         questionsPoolUpdated: s.poolUpdatedAt,
         participants: Object.values(s.players),
+        log: s.log,
       },
     };
   });

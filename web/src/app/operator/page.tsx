@@ -9,6 +9,8 @@ import CSVUpload from '@/components/operator/CSVUpload';
 import FormatToggle from '@/components/operator/FormatToggle';
 import PlayAlongPanel from '@/components/operator/PlayAlongPanel';
 import PasswordGate, { OPERATOR_TOKEN_KEY } from '@/components/operator/PasswordGate';
+import StatusStrip from '@/components/operator/StatusStrip';
+import RehearsalPanel from '@/components/operator/RehearsalPanel';
 
 export default function OperatorPanel() {
   // The operator JWT from the server. Survives a refresh, dies with the tab.
@@ -66,7 +68,10 @@ export default function OperatorPanel() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 py-6 justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 pb-6 justify-center">
+      {/* Show-day health: server, big screen, phones, load, backup */}
+      <StatusStrip connected={connected} hasQuestion={!!gameState.currentQuestion} />
+
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold text-white mb-2">Judge Me If You Can</h1>
@@ -99,6 +104,7 @@ export default function OperatorPanel() {
             gameState={gameState}
           />
           <PlayAlongPanel gameState={gameState} onError={handleError} />
+          <RehearsalPanel gameState={gameState} onError={handleError} />
         </div>
 
         {/* Center Column: Question Pool */}

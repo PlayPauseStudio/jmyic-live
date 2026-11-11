@@ -128,6 +128,8 @@ export interface GameState {
   responses?: ResponseRow[];
   // Operator + display: how many phones have registered.
   participantCount?: number;
+  /** Operator only: rehearsal-mode fake players. */
+  rehearsal?: { bots: number; autoAnswer: boolean };
   // Display: play-along answers + grading, only while the leaderboard is shown.
   leaderboard?: LeaderboardData | null;
   // Play-along phone: its own profile and answers (null until registered).

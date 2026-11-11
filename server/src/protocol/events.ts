@@ -30,6 +30,12 @@ export const OP = {
   RESET_EVERYTHING: 'op:resetEverything',
   /** Read-only: everything the Excel export needs, phone numbers included. */
   EXPORT_DATA: 'op:exportData',
+  /** Read-only: live numbers for the operator's status strip. */
+  STATUS: 'op:status',
+  /** Rehearsal mode: fake players for trying the leaderboard. */
+  REHEARSAL_ADD: 'op:rehearsalAdd',
+  REHEARSAL_CLEAR: 'op:rehearsalClear',
+  REHEARSAL_AUTO: 'op:rehearsalAuto',
 } as const;
 
 // audience (play-along phones) → server (require a verified Firebase uid)
@@ -51,4 +57,6 @@ export interface Ack {
   classicNeedsReset?: boolean;
   /** op:exportData — the full data set. */
   data?: unknown;
+  /** op:status — live server numbers. */
+  status?: unknown;
 }

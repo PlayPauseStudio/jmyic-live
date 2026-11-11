@@ -133,6 +133,7 @@ export function operatorView(s: ServerState): View {
     pool: s.pool,
     participantCount: participantCount(s),
     responses: currentResponses(s),
+    rehearsal: s.rehearsal,
   };
 }
 

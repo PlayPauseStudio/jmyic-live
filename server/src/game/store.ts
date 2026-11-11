@@ -29,6 +29,14 @@ export class RoomStore {
     return ++this._version;
   }
 
+  /**
+   * Something outside the broadcast state changed (an episode log row), so the
+   * snapshot timer should save even though no game state moved.
+   */
+  markChanged(): void {
+    this._version++;
+  }
+
   snapshot(): Snapshot {
     return { version: this._version, state: this.state };
   }
@@ -46,6 +54,8 @@ export class RoomStore {
       players: s.players ?? {},
       answers: s.answers ?? {},
       questionMeta: s.questionMeta ?? {},
+      log: Array.isArray(s.log) ? s.log : [],
+      rehearsal: { ...base.rehearsal, ...(s.rehearsal ?? {}) },
     };
     this._version = snap.version ?? 0;
   }

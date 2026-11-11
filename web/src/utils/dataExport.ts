@@ -29,6 +29,19 @@ interface RawParticipant {
   name?: string;
   phone?: string;
   createdAt?: number | string;
+  /** A rehearsal-mode fake player. */
+  fake?: boolean;
+}
+
+/** One row of the server's episode log (server/src/game/state.ts LogEntry). */
+interface RawLogEntry {
+  t: number;
+  actor: string;
+  event: string;
+  q: string;
+  details: string;
+  lives: number | null;
+  prize: number | null;
 }
 
 export interface GatheredGameData {
@@ -38,6 +51,7 @@ export interface GatheredGameData {
   questionsPool: Question[];
   questionsPoolUpdated: string | null;
   participants: RawParticipant[];
+  log: RawLogEntry[];
 }
 
 // ── 1. Gather everything from the server ────────────────────────────────────
@@ -54,6 +68,7 @@ export async function gatherAllGameData(): Promise<GatheredGameData> {
     questionsPool: d.questionsPool ?? [],
     questionsPoolUpdated: d.questionsPoolUpdated ?? null,
     participants: d.participants ?? [],
+    log: d.log ?? [],
   };
 }
 
@@ -144,20 +159,49 @@ export function buildWorkbook(data: GatheredGameData): XLSX.WorkBook {
   summarySheet['!cols'] = [{ wch: 28 }, { wch: 45 }];
   XLSX.utils.book_append_sheet(wb, summarySheet, 'Game Summary');
 
-  // -- Sheet 2: Participants -------------------------------------------------
+  // -- Sheet 2: Episode Log (everything that happened, in order) ---------------
+  const startedAt = data.log[0]?.t ?? null;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const sinceStart = (t: number) => {
+    if (startedAt === null) return '';
+    const s = Math.max(0, Math.round((t - startedAt) / 1000));
+    return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
+  };
+  const logRows = data.log.map((r, i) => ({
+    '#': i + 1,
+    Time: fmtTimestamp(r.t),
+    'Into Episode': sinceStart(r.t),
+    Who: r.actor,
+    Event: r.event,
+    Question: r.q,
+    Details: r.details,
+    'Lives After': r.lives ?? '',
+    'Prize After (₹)': r.prize ?? '',
+  }));
+  const logSheet = XLSX.utils.json_to_sheet(
+    logRows.length
+      ? logRows
+      : [{ '#': '', Time: '', 'Into Episode': '', Who: '', Event: 'No events logged yet', Question: '', Details: '', 'Lives After': '', 'Prize After (₹)': '' }]
+  );
+  logSheet['!cols'] = [{ wch: 6 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 40 }, { wch: 16 }, { wch: 80 }, { wch: 11 }, { wch: 15 }];
+  logSheet['!autofilter'] = { ref: `A1:I${Math.max(logRows.length, 1) + 1}` };
+  XLSX.utils.book_append_sheet(wb, logSheet, 'Episode Log');
+
+  // -- Sheet 3: Participants -------------------------------------------------
   const participantRows = data.participants.map((p) => ({
     Name: p.name ?? '',
     Phone: p.phone ?? '',
     UID: p.uid ?? '',
     'Registered At': fmtTimestamp(p.createdAt),
+    'Fake (rehearsal)': p.fake ? 'Yes' : '',
   }));
   const participantsSheet = XLSX.utils.json_to_sheet(
-    participantRows.length ? participantRows : [{ Name: '', Phone: '', UID: '', 'Registered At': '' }]
+    participantRows.length ? participantRows : [{ Name: '', Phone: '', UID: '', 'Registered At': '', 'Fake (rehearsal)': '' }]
   );
-  participantsSheet['!cols'] = [{ wch: 24 }, { wch: 18 }, { wch: 30 }, { wch: 22 }];
+  participantsSheet['!cols'] = [{ wch: 24 }, { wch: 18 }, { wch: 30 }, { wch: 22 }, { wch: 16 }];
   XLSX.utils.book_append_sheet(wb, participantsSheet, 'Participants');
 
-  // -- Sheet 3: Play-Along Answers (flattened) -------------------------------
+  // -- Sheet 4: Play-Along Answers (flattened) -------------------------------
   const answerRows: Record<string, string | number>[] = [];
   const sortedQNums = Object.keys(data.answers)
     .map(Number)
@@ -191,7 +235,7 @@ export function buildWorkbook(data: GatheredGameData): XLSX.WorkBook {
   ];
   XLSX.utils.book_append_sheet(wb, answersSheet, 'Play-Along Answers');
 
-  // -- Sheet 4: Leaderboard --------------------------------------------------
+  // -- Sheet 5: Leaderboard --------------------------------------------------
   // Aggregate latest answer per (uid, question), then rank by total correct.
   interface LbUser {
     uid: string;
@@ -240,7 +284,7 @@ export function buildWorkbook(data: GatheredGameData): XLSX.WorkBook {
   leaderboardSheet['!cols'] = [{ wch: 6 }, { wch: 24 }, { wch: 18 }, { wch: 14 }];
   XLSX.utils.book_append_sheet(wb, leaderboardSheet, 'Leaderboard');
 
-  // -- Sheet 5: Questions Pool -----------------------------------------------
+  // -- Sheet 6: Questions Pool -----------------------------------------------
   const poolRows = data.questionsPool.map((q) => ({
     ID: q.id,
     ...(isOneShot
@@ -271,7 +315,7 @@ export function buildWorkbook(data: GatheredGameData): XLSX.WorkBook {
     : [{ wch: 22 }, { wch: 50 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, poolSheet, isOneShot ? 'Contestants' : 'Questions Pool');
 
-  // -- Sheet 6: Question Meta (what play-along was graded against) -----------
+  // -- Sheet 7: Question Meta (what play-along was graded against) -----------
   const metaRows = Object.keys(data.questionsMeta)
     .map(Number)
     .filter((n) => !isNaN(n))

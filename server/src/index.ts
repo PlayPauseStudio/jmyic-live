@@ -6,6 +6,7 @@ import { RoomStore } from './game/store';
 import { SnapshotStore } from './persistence/snapshot';
 import { buildApp } from './app';
 import { createIo } from './socket';
+import { logSystem } from './game/episodeLog';
 
 async function main(): Promise<void> {
   initFirebaseAdmin();
@@ -16,10 +17,24 @@ async function main(): Promise<void> {
   const snapshots = new SnapshotStore();
   const restored = await snapshots.load();
   if (restored) store.restore(restored);
+  logSystem(
+    store.getState(),
+    'Server started',
+    restored ? 'Show restored from the Redis backup' : snapshots.enabled ? 'No saved show — started empty' : 'No Redis backup configured',
+  );
+  store.markChanged();
 
-  const app = buildApp(() => store.version, () => snapshots.status);
+  let lastSavedAt: number | null = null;
+  const onLogin = (ok: boolean): void => {
+    logSystem(store.getState(), ok ? 'Operator signed in' : 'Wrong operator password');
+    store.markChanged();
+  };
+  const app = buildApp(() => store.version, () => snapshots.status, onLogin);
   const httpServer = createServer(app);
-  const { broadcaster } = createIo(httpServer, store);
+  const { broadcaster, fakePlayers } = createIo(httpServer, store, {
+    snapshots: () => snapshots.status,
+    lastSavedAt: () => lastSavedAt,
+  });
 
   // Snapshot whenever the state has changed — skipped while nothing has. A
   // failed save is retried on the next tick rather than marked done.
@@ -32,7 +47,10 @@ async function main(): Promise<void> {
     void snapshots
       .save(store.snapshot())
       .then((ok) => {
-        if (ok) savedVersion = version;
+        if (ok) {
+          savedVersion = version;
+          lastSavedAt = Date.now();
+        }
       })
       .finally(() => {
         saving = false;
@@ -61,6 +79,7 @@ async function main(): Promise<void> {
     logger.info({ signal }, 'shutting down');
     clearInterval(snapTimer);
     broadcaster.stop();
+    fakePlayers.stop();
     await snapshots.save(store.snapshot());
     await snapshots.close();
     httpServer.close(() => process.exit(0));

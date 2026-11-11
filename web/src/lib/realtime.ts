@@ -43,6 +43,10 @@ export const OP = {
   RESET_GAME: 'op:resetGame',
   RESET_EVERYTHING: 'op:resetEverything',
   EXPORT_DATA: 'op:exportData',
+  STATUS: 'op:status',
+  REHEARSAL_ADD: 'op:rehearsalAdd',
+  REHEARSAL_CLEAR: 'op:rehearsalClear',
+  REHEARSAL_AUTO: 'op:rehearsalAuto',
 } as const;
 
 export const AUD = {
@@ -60,6 +64,7 @@ export interface Ack {
   error?: string;
   classicNeedsReset?: boolean;
   data?: unknown;
+  status?: unknown;
 }
 
 export type TokenProvider = () => Promise<string | null> | string | null;

@@ -116,6 +116,34 @@ export interface Player {
   name: string;
   phone: string;
   createdAt: number;
+  /** A rehearsal-mode fake player (see game/rehearsal.ts). */
+  fake?: boolean;
+}
+
+/**
+ * One row of the episode log: what happened, in order, for the Excel export.
+ * Kept on the server (and in the Redis snapshot) so it survives an operator
+ * refresh or a server restart. Never sent to phones or the big screen.
+ */
+export interface LogEntry {
+  /** Server time, ms. */
+  t: number;
+  /** Operator · Result · Play-along · System · Rehearsal */
+  actor: string;
+  event: string;
+  /** "Q3" in Classic, the contestant's name in One Shot, or "" */
+  q: string;
+  details: string;
+  /** Classic only: lives and prize after this row. */
+  lives: number | null;
+  prize: number | null;
+}
+
+export interface RehearsalSettings {
+  /** Fake players currently registered. */
+  bots: number;
+  /** Fake players answer on their own while answers are open. */
+  autoAnswer: boolean;
 }
 
 /** One phone's answer to one question number (formerly RTDB playAlong/answers). */
@@ -155,6 +183,9 @@ export interface ServerState {
   answers: Record<string, Record<string, PlayAnswer>>;
   /** questionNumber -> meta */
   questionMeta: Record<string, QuestionMeta>;
+  /** Everything that happened this episode, oldest first. Appended in place; cleared by Reset Everything. */
+  log: LogEntry[];
+  rehearsal: RehearsalSettings;
 }
 
 export const PRIZE_TIERS = [
@@ -238,6 +269,8 @@ export function initialServerState(): ServerState {
     players: {},
     answers: {},
     questionMeta: {},
+    log: [],
+    rehearsal: { bots: 0, autoAnswer: true },
   };
 }
 
